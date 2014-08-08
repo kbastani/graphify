@@ -241,15 +241,7 @@ public class GraphManager {
                 try (Transaction tx = db.beginTx()) {
 
                     currentNode.setProperty("matches", 0);
-                    if(currentNode.hasProperty("root"))
-                    {
-                        currentNode.setProperty("threshold", ((int)currentNode.getProperty("threshold") / 5) + ((int)currentNode.getProperty("threshold")));
-                    }
-                    else
-                    {
-                        currentNode.setProperty("threshold", ((int)currentNode.getProperty("threshold") / 5) + ((int)currentNode.getProperty("threshold")));
-                    }
-
+                    currentNode.setProperty("threshold", ((int)currentNode.getProperty("threshold") / 5) + ((int)currentNode.getProperty("threshold")));
                     tx.success();
                 }
 
@@ -285,9 +277,7 @@ public class GraphManager {
                                 }
                             }
                         }
-
                     }
-
                 }
 
                 // Generate nodes for every wildcard
@@ -337,6 +327,7 @@ public class GraphManager {
                                 {
                                     dataRelationshipManager.getOrCreateNode(leafNode.getId(), dn.getId(), db);
                                 });
+                                propagatePatternsBreadthFirst(db, currentNode, label, depth, nodeMatches, leafNode);
                             }
                             else {
                                 recognizeMatch(db, leafNode, dataNode, label, depth + 1, nodeMatches, true);
@@ -351,6 +342,36 @@ public class GraphManager {
         }
 
         return  b;
+    }
+
+    /**
+     * Propagates pattern binding breadth-first in order to connect new pattern nodes to historical data.
+     * @param db The Neo4j GraphDatabaseService that contains the pattern recognition hierarchy.
+     * @param currentNode The current pattern node that the recursive pattern recognition algorithm is operating on within the hierarchy.
+     * @param label The name of the label that should be associated with any patterns that are mined in the supplied text snippet contained within the text parameter.
+     * @param depth The level of depth that the algorithm is currently operating a matching algorithm on.
+     * @param nodeMatches A list of Neo4j node IDs that represent each pattern node that has previously been matched in the recursive matching process.
+     * @param leafNode A newly created pattern that should now be matched on data up the hierarchy.
+     */
+    private void propagatePatternsBreadthFirst(GraphDatabaseService db, Node currentNode, String label, int depth, List<Integer> nodeMatches, Node leafNode) {
+        // Traverse breadth-first to bind new pattern to data nodes up the hierarchy
+        for (Node patternNodes : db.traversalDescription()
+                .breadthFirst()
+                .relationships(Rels.NEXT, Direction.INCOMING)
+                .evaluator(Evaluators.fromDepth(1))
+                .evaluator(Evaluators.toDepth(1))
+                .traverse(currentNode)
+                .nodes()) {
+            for (Node dataNodes : db.traversalDescription()
+                    .depthFirst()
+                    .relationships(Rels.MATCHES, Direction.OUTGOING)
+                    .evaluator(Evaluators.fromDepth(1))
+                    .evaluator(Evaluators.toDepth(1))
+                    .traverse(patternNodes)
+                    .nodes()) {
+                recognizeMatch(db, leafNode, dataNodes, (String)dataNodes.getProperty("label"), depth - 1, nodeMatches, true);
+            }
+        }
     }
 
     /**
