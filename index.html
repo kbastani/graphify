@@ -48,28 +48,36 @@
 </code></pre>
 </li>
 <li><p>Start Neo4j server.</p></li>
-<li><p>Query it over HTTP:</p></li>
-</ol><p>Get similar labels:</p>
+<li><p>Query it over HTTP.</p></li>
+</ol><h1>
+<a name="examples" class="anchor" href="#examples"><span class="octicon octicon-link"></span></a>Examples</h1>
+
+<h4>
+<a name="get-similar-labels" class="anchor" href="#get-similar-labels"><span class="octicon octicon-link"></span></a>Get similar labels:</h4>
 
 <pre><code>curl http://localhost:7474/service/pattern/similar/{label}
 </code></pre>
 
-<p>Train the natural language recognition model on text about 'Document classification':</p>
+<h4>
+<a name="train-the-natural-language-recognition-model-on-text-about-document-classification" class="anchor" href="#train-the-natural-language-recognition-model-on-text-about-document-classification"><span class="octicon octicon-link"></span></a>Train the natural language recognition model on text about 'Document classification':</h4>
 
 <pre><code>curl -H "Content-Type: application/json" -d '{"label": "Document classification", "text": "Documents may be classified according to their subjects or according to other attributes (such as document type, author, printing year etc.). In the rest of this article only subject classification is considered. There are two main philosophies of subject classification of documents: The content based approach and the request based approach."}' http://localhost:7474/service/pattern/training
 </code></pre>
 
-<p>Get the top 10 most related text documents in the database for the supplied string of text:</p>
+<h4>
+<a name="get-the-top-10-most-related-text-documents-in-the-database-for-the-supplied-string-of-text" class="anchor" href="#get-the-top-10-most-related-text-documents-in-the-database-for-the-supplied-string-of-text"><span class="octicon octicon-link"></span></a>Get the top 10 most related text documents in the database for the supplied string of text:</h4>
 
 <pre><code>curl -H "Content-Type: application/json" -d '{"text": "A document is a written or drawn representation of thoughts. Originating from the Latin Documentum meaning lesson - the verb means to teach, and is pronounced similarly, in the past it was usually used as a term for a written proof used as evidence."}' http://localhost:7474/service/pattern/related
 </code></pre>
 
-<p>Get a sorted list of labels that are most related to the label 'Document':</p>
+<h4>
+<a name="get-a-sorted-list-of-labels-that-are-most-related-to-the-label-document" class="anchor" href="#get-a-sorted-list-of-labels-that-are-most-related-to-the-label-document"><span class="octicon octicon-link"></span></a>Get a sorted list of labels that are most related to the label 'Document':</h4>
 
 <pre><code>curl http://localhost:7474/service/pattern/similar/Document
 </code></pre>
 
-<p>Example response:</p>
+<h5>
+<a name="example-response" class="anchor" href="#example-response"><span class="octicon octicon-link"></span></a>Example response:</h5>
 
 <pre><code>[
     {
@@ -95,17 +103,20 @@
 ]
 </code></pre>
 
-<p>Get a sorted list of labels that are most related to the label 'Document classification':</p>
+<h4>
+<a name="get-a-sorted-list-of-labels-that-are-most-related-to-the-label-document-classification" class="anchor" href="#get-a-sorted-list-of-labels-that-are-most-related-to-the-label-document-classification"><span class="octicon octicon-link"></span></a>Get a sorted list of labels that are most related to the label 'Document classification':</h4>
 
 <pre><code>curl http://localhost:7474/service/pattern/similar/Document%20classification
 </code></pre>
 
-<p>Get the top 10 most related text documents in the database for the supplied string of text:</p>
+<h4>
+<a name="get-the-top-10-most-related-text-documents-in-the-database-for-the-supplied-string-of-text-1" class="anchor" href="#get-the-top-10-most-related-text-documents-in-the-database-for-the-supplied-string-of-text-1"><span class="octicon octicon-link"></span></a>Get the top 10 most related text documents in the database for the supplied string of text:</h4>
 
 <pre><code>curl -H "Content-Type: application/json" -d '{"text": "A document is a written or drawn representation of thoughts."}' http://localhost:7474/service/pattern/related
 </code></pre>
 
-<p>Example response:</p>
+<h5>
+<a name="example-response-1" class="anchor" href="#example-response-1"><span class="octicon octicon-link"></span></a>Example response:</h5>
 
 <pre><code>[
     {
