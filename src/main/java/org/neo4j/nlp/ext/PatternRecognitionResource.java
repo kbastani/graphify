@@ -59,7 +59,7 @@ public class PatternRecognitionResource {
     @Path("/training")
     @Produces(MediaType.APPLICATION_JSON)
     public Response training(String body, @Context GraphDatabaseService db) throws IOException {
-        HashMap<String, String> input;
+        HashMap<String, Object> input;
         try {
             input = objectMapper.readValue(body, HashMap.class);
         } catch (Exception e) {
@@ -67,8 +67,16 @@ public class PatternRecognitionResource {
         }
 
         LabeledText labeledText = new LabeledText();
-        labeledText.setLabel(input.get("label"));
-        labeledText.setText(input.get("text"));
+        labeledText.setLabel((String)input.get("label"));
+        if(input.containsKey("label"))
+            labeledText.setText((String)input.get("text"));
+        if(input.containsKey("focus")) {
+            labeledText.setFocus((int) input.get("focus"));
+        }
+        else
+        {
+            labeledText.setFocus(10);
+        }
 
         // This method trains a model on a supplied label and text content
         Node patternNode;
@@ -76,7 +84,9 @@ public class PatternRecognitionResource {
         // Add first matcher
         try ( Transaction tx = db.beginTx() ) {
             patternNode = getRootPatternNode(db);
-            GRAPH_MANAGER.handlePattern(patternNode, labeledText.getText(), db, labeledText.getLabel());
+            for (int i = 0; i < labeledText.getFocus(); i++) {
+                GRAPH_MANAGER.handlePattern(patternNode, labeledText.getText(), db, labeledText.getLabel());
+            }
             tx.success();
         }
 
@@ -212,13 +222,13 @@ public class PatternRecognitionResource {
                 "MATCH (class:Class { name: {name} })\n" +
                 "MATCH (class)<-[:HAS_CLASS]-(pattern:Pattern),\n" +
                 "      (pattern)-[:HAS_CLASS]->(classes:Class)\n" +
-                "WHERE pattern.threshold < 20 AND classes.name <> 'CLASSIFY'\n" +
+                "WHERE classes.name <> 'CLASSIFY'\n" +
                 "WITH class.name as class, classes.name as relatedTo, count(pattern) as patterns\n" +
                 "WITH sum(patterns) as total\n" +
                 "MATCH (class:Class { name: {name} })\n" +
                 "MATCH (class)<-[:HAS_CLASS]-(pattern:Pattern),\n" +
                 "      (pattern)-[:HAS_CLASS]->(classes:Class)\n" +
-                "WHERE pattern.threshold < 20 AND classes.name <> 'CLASSIFY'\n" +
+                "WHERE classes.name <> 'CLASSIFY'\n" +
                 "RETURN classes.name as class, toFloat(toFloat(count(pattern)) / toFloat(total)) as weight\n" +
                 "ORDER BY weight DESC\n" +
                 "LIMIT 100";
