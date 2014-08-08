@@ -12,7 +12,7 @@
  * the License.
  */
 
-package org.recognition.kernel.helpers;
+package org.neo4j.nlp.helpers;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -20,7 +20,7 @@ import org.neo4j.graphdb.*;
 import org.neo4j.graphdb.index.UniqueFactory;
 import org.neo4j.graphdb.traversal.Evaluators;
 import org.neo4j.helpers.collection.IteratorUtil;
-import org.recognition.kernel.models.PatternCount;
+import org.neo4j.nlp.models.PatternCount;
 
 import java.util.*;
 import java.util.regex.Matcher;

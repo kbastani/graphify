@@ -12,7 +12,7 @@
  * the License.
  */
 
-package org.recognition.kernel.models;
+package org.neo4j.nlp.models;
 
 import org.neo4j.graphdb.Node;
 

@@ -12,7 +12,7 @@
  * the License.
  */
 
-package org.recognition.kernel.helpers;
+package org.neo4j.nlp.helpers;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;

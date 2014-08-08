@@ -12,7 +12,7 @@
  * the License.
  */
 
-package org.recognition.kernel.impl.util;
+package org.neo4j.nlp.impl.util;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
@@ -21,7 +21,7 @@ import org.codehaus.jackson.map.ObjectMapper;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
-import org.recognition.kernel.helpers.GraphManager;
+import org.neo4j.nlp.helpers.GraphManager;
 
 import java.util.*;
 

@@ -1,4 +1,4 @@
-package org.recognition.kernel.impl.util;
+package org.neo4j.nlp.impl.util;
 
 import com.google.gson.Gson;
 import junit.framework.TestCase;
@@ -8,8 +8,8 @@ import org.junit.Test;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.test.TestGraphDatabaseFactory;
-import org.recognition.kernel.helpers.GraphManager;
-import org.recognition.kernel.models.PatternCount;
+import org.neo4j.nlp.helpers.GraphManager;
+import org.neo4j.nlp.models.PatternCount;
 
 import java.io.FileNotFoundException;
 import java.util.*;
