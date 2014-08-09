@@ -110,7 +110,7 @@ public class GraphManager {
      * @param label The name of the label that should be associated with any patterns that are mined in the supplied text snippet contained within the text parameter.
      * @return Returns the ID of the data node that represents the input text as a node within the Neo4j graph database.
      */
-    public int handlePattern(Node patternNode, String text, GraphDatabaseService db, String label) {
+    public int handlePattern(Node patternNode, String text, GraphDatabaseService db, String[] label) {
         List<Integer> nodeMatches = new ArrayList<>();
         Node dataNode;
         // Get child patterns
@@ -142,7 +142,7 @@ public class GraphManager {
      * @param nodeMatches A list of Neo4j node IDs that represent each pattern node that has previously been matched in the recursive matching process.
      * @param cont A flag indicating whether or not to continue recursive matching,
      */
-    private void recognizeMatch(GraphDatabaseService db, Node patternNode, Node dataNode, String label, int depth, List<Integer> nodeMatches, boolean cont) {
+    private void recognizeMatch(GraphDatabaseService db, Node patternNode, Node dataNode, String[] label, int depth, List<Integer> nodeMatches, boolean cont) {
         ResourceIterable<Node> nodes;
         int resultCount;
         boolean active;
@@ -217,7 +217,7 @@ public class GraphManager {
      * @param nodeMatches A list of Neo4j node IDs that represent each pattern node that has previously been matched in the recursive matching process.
      * @return Returns a flag that indicates whether or not the currentPattern parameter's RegEx matched the dataNode parameter representing the input text to train on.
      */
-    private boolean matchLeaves(GraphDatabaseService db, Node dataNode, Node currentNode, String label, int depth, List<Integer> nodeMatches) {
+    private boolean matchLeaves(GraphDatabaseService db, Node dataNode, Node currentNode, String[] label, int depth, List<Integer> nodeMatches) {
 
         Pattern p = Pattern.compile("(?i)" + (String) currentNode.getProperty("pattern"));
         Matcher m = p.matcher((String) dataNode.getProperty("value"));
@@ -228,11 +228,15 @@ public class GraphManager {
             // Increment match
             try (Transaction tx = db.beginTx()) {
                 // Relate to label
-                Node labelNode = classManager.getOrCreateNode(label, db);
-
-                relationshipManager.getOrCreateNode(currentNode.getId(), labelNode.getId(), db);
+                for(String labelName : label)
+                {
+                    Node labelNode = classManager.getOrCreateNode(labelName, db);
+                    relationshipManager.getOrCreateNode(currentNode.getId(), labelNode.getId(), db);
+                }
                 dataRelationshipManager.getOrCreateNode(currentNode.getId(), dataNode.getId(), db);
                 currentNode.setProperty("matches", ((int) currentNode.getProperty("matches")) + 1);
+
+
                 tx.success();
             }
 
@@ -325,6 +329,12 @@ public class GraphManager {
                                 // Bind new pattern to the data nodes it was generated from
                                 patternCount.getDataNodes().forEach((dn) ->
                                 {
+                                    String[] dataLabels = (String[])dn.getProperty("label");
+                                    for(String labelName : dataLabels)
+                                    {
+                                        Node labelNode = classManager.getOrCreateNode(labelName, db);
+                                        relationshipManager.getOrCreateNode(leafNode.getId(), labelNode.getId(), db);
+                                    }
                                     dataRelationshipManager.getOrCreateNode(leafNode.getId(), dn.getId(), db);
                                 });
                                 propagatePatternsBreadthFirst(db, currentNode, label, depth, nodeMatches, leafNode);
@@ -353,7 +363,7 @@ public class GraphManager {
      * @param nodeMatches A list of Neo4j node IDs that represent each pattern node that has previously been matched in the recursive matching process.
      * @param leafNode A newly created pattern that should now be matched on data up the hierarchy.
      */
-    private void propagatePatternsBreadthFirst(GraphDatabaseService db, Node currentNode, String label, int depth, List<Integer> nodeMatches, Node leafNode) {
+    private void propagatePatternsBreadthFirst(GraphDatabaseService db, Node currentNode, String[] label, int depth, List<Integer> nodeMatches, Node leafNode) {
         // Traverse breadth-first to bind new pattern to data nodes up the hierarchy
         for (Node patternNodes : db.traversalDescription()
                 .breadthFirst()
@@ -369,7 +379,7 @@ public class GraphManager {
                     .evaluator(Evaluators.toDepth(1))
                     .traverse(patternNodes)
                     .nodes()) {
-                recognizeMatch(db, leafNode, dataNodes, (String)dataNodes.getProperty("label"), depth - 1, nodeMatches, true);
+                recognizeMatch(db, leafNode, dataNodes, (String[])dataNodes.getProperty("label"), depth - 1, nodeMatches, true);
             }
         }
     }

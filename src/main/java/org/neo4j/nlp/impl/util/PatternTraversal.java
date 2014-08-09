@@ -73,7 +73,7 @@ public class PatternTraversal implements Runnable {
         try {
             while(isRunning) {
                 // Find similar sentence
-                int sentenceId = graphManager.handlePattern(patternNode, threadName, db, className);
+                int sentenceId = graphManager.handlePattern(patternNode, threadName, db, new String[] {className});
 
                 Map<String, Object> params = new HashMap<>();
                 params.put("id", sentenceId);

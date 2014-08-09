@@ -29,11 +29,11 @@ public class LabeledText {
     @XmlElement(required=true)
     protected String text;
     @XmlElement(required=true)
-    protected String label;
+    protected String[] label;
     @XmlElement(required=false)
     protected int focus;
 
-    public void setLabel(String label) {
+    public void setLabel(String[] label) {
         this.label = label;
     }
 
@@ -45,7 +45,7 @@ public class LabeledText {
         this.focus = focus;
     }
 
-    public String getLabel() {
+    public String[] getLabel() {
         return label;
     }
 

@@ -120,13 +120,13 @@ public class GraphManagerTest extends TestCase {
 
         for (String str : text.keySet())
         {
-            graphManager.handlePattern(rootNode, str, db, text.get(str));
+            graphManager.handlePattern(rootNode, str, db, new String[] { text.get(str) });
         }
 
         // Test new sentences
-        int document = graphManager.handlePattern(rootNode, "The fiftieth word in a document end", db, "CLASSIFY");
-        int sentence = graphManager.handlePattern(rootNode, "The last word in a sentence end", db, "CLASSIFY");
-        int paragraph = graphManager.handlePattern(rootNode, "The longest word in a paragraph end", db, "CLASSIFY");
+        int document = graphManager.handlePattern(rootNode, "The fiftieth word in a document end", db, new String[] { "CLASSIFY" });
+        int sentence = graphManager.handlePattern(rootNode, "The last word in a sentence end", db, new String[] { "CLASSIFY" });
+        int paragraph = graphManager.handlePattern(rootNode, "The longest word in a paragraph end", db, new String[] { "CLASSIFY" });
 
         Map<String, Object> params = new HashMap<>();
 

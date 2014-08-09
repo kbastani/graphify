@@ -67,7 +67,9 @@ public class PatternRecognitionResource {
         }
 
         LabeledText labeledText = new LabeledText();
-        labeledText.setLabel((String)input.get("label"));
+        ArrayList labels = (ArrayList)input.get("label");
+
+        labeledText.setLabel((String[])labels.toArray(new String[labels.size()]));
         if(input.containsKey("label"))
             labeledText.setText((String)input.get("text"));
         if(input.containsKey("focus")) {
@@ -132,7 +134,7 @@ public class PatternRecognitionResource {
         // Add first matcher
         try ( Transaction tx = db.beginTx() ) {
             patternNode = getRootPatternNode(db);
-            dataId = GRAPH_MANAGER.handlePattern(patternNode, labeledText.getText(), db, "CLASSIFY");
+            dataId = GRAPH_MANAGER.handlePattern(patternNode, labeledText.getText(), db, new String[] {"CLASSIFY"});
             tx.success();
         }
 
