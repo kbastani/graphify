@@ -60,6 +60,8 @@ public class RelationshipManager {
                 nodeList.add(endNodes.getId());
             }
 
+            startNode.setProperty("classes", nodeList.size());
+
             relationshipCache.put(start, nodeList);
             relList = nodeList;
         }
@@ -69,6 +71,7 @@ public class RelationshipManager {
             try {
                 Node endNode = db.getNodeById(end);
                 startNode.createRelationshipTo(endNode, withName(relationshipType));
+                startNode.setProperty("classes", relList.size());
                 tx.success();
             } catch (final Exception e) {
                 tx.failure();
