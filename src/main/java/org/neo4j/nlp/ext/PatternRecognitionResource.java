@@ -77,7 +77,7 @@ public class PatternRecognitionResource {
         }
         else
         {
-            labeledText.setFocus(10);
+            labeledText.setFocus(1);
         }
 
         // This method trains a model on a supplied label and text content
@@ -92,11 +92,52 @@ public class PatternRecognitionResource {
             tx.success();
         }
 
+        return Response.ok()
+                .entity("{success:\"true\"}")
+                .type(MediaType.APPLICATION_JSON)
+                .build();
+    }
+
+    /**
+     * Classify a body of text using the training model stored in the graph database.
+     * @param body The JSON model that binds to the LabeledText class model.
+     * @param db The Neo4j graph database service.
+     * @return Returns a sorted list of classes ranked on probability.
+     * @throws IOException
+     */
+    @POST
+    @Path("/classify")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response classify(String body, @Context GraphDatabaseService db) throws IOException {
+        HashMap<String, Object> input;
+        try {
+            input = objectMapper.readValue(body, HashMap.class);
+        } catch (Exception e) {
+            return Response.status(400).entity("{\"error\":\"Error parsing JSON.\"}").build();
+        }
+
+        LabeledText labeledText = new LabeledText();
+
+        if(input.containsKey("text"))
+            labeledText.setText((String)input.get("text"));
+
+        // This method trains a model on a supplied label and text content
+        Node patternNode;
+
+        int contentId;
+
+        // Add first matcher
+        try ( Transaction tx = db.beginTx() ) {
+            patternNode = getRootPatternNode(db);
+            contentId = GRAPH_MANAGER.handlePattern(patternNode, labeledText.getText(), db, new String[0]);
+            tx.success();
+        }
+
         Map<String, Object> params = new HashMap<>();
 
-        params.put("name", labeledText.getLabel());
+        params.put("id", contentId);
 
-        String similarClass = executeCypher(db, getSimilarClass(), params);
+        String similarClass = executeCypher(db, getContentClassification(), params);
 
         return Response.ok()
                 .entity(similarClass)
@@ -157,7 +198,7 @@ public class PatternRecognitionResource {
      */
     private Node getRootPatternNode(GraphDatabaseService db) {
         Node patternNode;
-        patternNode = GRAPH_MANAGER.getOrCreateNode("(\\b[\\w']+\\b)\\s(\\b[\\w']+\\b)", db);
+        patternNode = GRAPH_MANAGER.getOrCreateNode("(\\b[\\w'.]+\\b)\\s(\\b[\\w'.]+\\b)", db);
         if(!patternNode.hasProperty("matches")) {
             patternNode.setProperty("matches", 0);
             patternNode.setProperty("threshold", 5);
@@ -224,17 +265,37 @@ public class PatternRecognitionResource {
                 "MATCH (class:Class { name: {name} })\n" +
                 "MATCH (class)<-[:HAS_CLASS]-(pattern:Pattern),\n" +
                 "      (pattern)-[:HAS_CLASS]->(classes:Class)\n" +
-                "WHERE classes.name <> 'CLASSIFY'\n" +
+                "WHERE classes.name <> 'CLASSIFY' AND coalesce(pattern.classes, 0) < 10\n" +
                 "WITH class.name as class, classes.name as relatedTo, count(pattern) as patterns\n" +
                 "WITH sum(patterns) as total\n" +
                 "MATCH (class:Class { name: {name} })\n" +
                 "MATCH (class)<-[:HAS_CLASS]-(pattern:Pattern),\n" +
                 "      (pattern)-[:HAS_CLASS]->(classes:Class)\n" +
-                "WHERE classes.name <> 'CLASSIFY'\n" +
+                "WHERE classes.name <> 'CLASSIFY' AND coalesce(pattern.classes, 0) < 10\n" +
                 "RETURN classes.name as class, toFloat(toFloat(count(pattern)) / toFloat(total)) as weight\n" +
                 "ORDER BY weight DESC\n" +
                 "LIMIT 100";
     }
+
+    private static String getContentClassification() {
+        return
+                "MATCH (content:Data) WHERE id(content) = {id}\n" +
+                "WITH content\n" +
+                "MATCH (content)<-[:MATCHES]-(pattern:Pattern),\n" +
+                "      (class:Class)<-[:HAS_CLASS]-(pattern)\n" +
+                "WHERE class.name <> 'CLASSIFY' AND coalesce(pattern.classes, 0) < 10\n" +
+                "WITH class.name as relatedTo, count(pattern) as patterns\n" +
+                "WITH sum(patterns) as total\n" +
+                "MATCH (content:Data) WHERE id(content) = {id}\n" +
+                "WITH content, total\n" +
+                "MATCH (content)<-[:MATCHES]-(pattern:Pattern),\n" +
+                "      (class:Class)<-[:HAS_CLASS]-(pattern)\n" +
+                "WHERE class.name <> 'CLASSIFY' AND coalesce(pattern.classes, 0) < 10\n" +
+                "RETURN class.name as class, toFloat(toFloat(count(pattern)) / toFloat(total)) as weight\n" +
+                "ORDER BY weight DESC\n" +
+                "LIMIT 100";
+    }
+
 
     /**
      * A Cypher query template that is used to find the most similar data to a supplied data ID.
@@ -246,7 +307,7 @@ public class PatternRecognitionResource {
                 "MATCH (n)<-[:MATCHES]-(pattern:Pattern)\n" +
                 "WITH pattern, n\n" +
                 "MATCH (pattern)-[:MATCHES]->(data:Data)\n" +
-                "WHERE n <> data AND data.label <> 'CLASSIFY'\n" +
+                "WHERE n <> data AND data.label <> 'CLASSIFY' AND coalesce(pattern.classes, 0) < 10\n" +
                 "WITH data.label as label, data.value as data, count(pattern) as count\n" +
                 "WHERE count > 2\n" +
                 "RETURN data, label, count\n" +

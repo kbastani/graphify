@@ -236,7 +236,6 @@ public class GraphManager {
                 dataRelationshipManager.getOrCreateNode(currentNode.getId(), dataNode.getId(), db);
                 currentNode.setProperty("matches", ((int) currentNode.getProperty("matches")) + 1);
 
-
                 tx.success();
             }
 
@@ -390,7 +389,7 @@ public class GraphManager {
      * @return Returns a readable format of the RegEx, with {n} in place of wildcard matches.
      */
     public String GetTemplate(String pattern) {
-        Pattern generalMatcher = Pattern.compile("\\(\\\\b\\[\\\\w'\\]\\+\\\\b\\)");
+        Pattern generalMatcher = Pattern.compile("\\(\\\\b\\[\\\\w'.\\]\\+\\\\b\\)");
         Matcher regexMatcher = generalMatcher.matcher(pattern);
         StringBuffer s = new StringBuffer();
         int counter = 0;
@@ -412,7 +411,7 @@ public class GraphManager {
      * @return Returns a new child pattern that is generated from the patternCount model.
      */
     public String GeneratePattern(int i, PatternCount patternCount, String pattern) {
-        Pattern generalMatcher = Pattern.compile("\\(\\\\b\\[\\\\w'\\]\\+\\\\b\\)");
+        Pattern generalMatcher = Pattern.compile("\\(\\\\b\\[\\\\w'.\\]\\+\\\\b\\)");
         Matcher regexMatcher = generalMatcher.matcher(pattern);
         StringBuffer s = new StringBuffer();
         int counter = 0;
@@ -420,7 +419,7 @@ public class GraphManager {
         while (regexMatcher.find()) {
             if (counter == i) {
                 StringBuffer sb = new StringBuffer();
-                sb.append("\\(\\\\b\\[\\\\w'\\]\\+\\\\b\\)");
+                sb.append("\\(\\\\b\\[\\\\w'.\\]\\+\\\\b\\)");
 
                 regexMatcher.appendReplacement(s, ((counter == 0) ? sb.toString() + ("\\\\s" + patternCount.getPattern()) : (patternCount.getPattern() + "\\\\s") + sb.toString()));
             } else {

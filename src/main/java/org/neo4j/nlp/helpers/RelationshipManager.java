@@ -16,10 +16,12 @@ package org.neo4j.nlp.helpers;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.index.UniqueFactory;
+import org.neo4j.graphdb.traversal.Evaluators;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,8 +45,21 @@ public class RelationshipManager {
     public List<Long> getOrCreateNode(Long start, Long end, GraphDatabaseService db) {
         List<Long> relList = relationshipCache.getIfPresent(start);
 
+        Node startNode = db.getNodeById(start);
+
         if (relList == null) {
             List<Long> nodeList = new ArrayList<>();
+            for(Node endNodes : db.traversalDescription()
+                    .depthFirst()
+                    .relationships(withName(relationshipType), Direction.OUTGOING)
+                    .evaluator(Evaluators.fromDepth(1))
+                    .evaluator(Evaluators.toDepth(1))
+                    .traverse(startNode)
+                    .nodes())
+            {
+                nodeList.add(endNodes.getId());
+            }
+
             relationshipCache.put(start, nodeList);
             relList = nodeList;
         }
@@ -52,7 +67,6 @@ public class RelationshipManager {
         if (!relList.contains(end)) {
             Transaction tx = db.beginTx();
             try {
-                Node startNode = db.getNodeById(start);
                 Node endNode = db.getNodeById(end);
                 startNode.createRelationshipTo(endNode, withName(relationshipType));
                 tx.success();
