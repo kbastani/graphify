@@ -20,7 +20,6 @@ import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
-import org.neo4j.graphdb.index.UniqueFactory;
 import org.neo4j.graphdb.traversal.Evaluators;
 
 import java.util.ArrayList;
@@ -31,13 +30,12 @@ import static org.neo4j.graphdb.DynamicRelationshipType.withName;
 /**
  * This class is used to cache relationships that exist in a pattern recognition hierarchy.
  */
-public class RelationshipManager {
+public class DataRelationshipManager {
 
     public static final Cache<Long, List<Long>> relationshipCache = CacheBuilder.newBuilder().maximumSize(20000000).build();
-    public UniqueFactory<Node> relationshipFactory;
     private String relationshipType;
 
-    public RelationshipManager(String relationshipType)
+    public DataRelationshipManager(String relationshipType)
     {
         this.relationshipType = relationshipType;
     }
@@ -60,10 +58,8 @@ public class RelationshipManager {
                 nodeList.add(endNodes.getId());
             }
 
-            startNode.setProperty("classes", nodeList.size());
-
-            relationshipCache.put(start, nodeList);
             relList = nodeList;
+            relationshipCache.put(start, relList);
         }
 
         if (!relList.contains(end)) {
@@ -71,7 +67,6 @@ public class RelationshipManager {
             try {
                 Node endNode = db.getNodeById(end);
                 startNode.createRelationshipTo(endNode, withName(relationshipType));
-                startNode.setProperty("classes", relList.size());
                 tx.success();
             } catch (final Exception e) {
                 tx.failure();

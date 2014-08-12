@@ -46,15 +46,15 @@ public class GraphManager {
     private UniqueFactory<Node> patternFactory;
     private final String label;
     private final String propertyKey;
-    private final RelationshipManager relationshipManager;
-    private final RelationshipManager dataRelationshipManager;
+    private final PatternRelationshipManager relationshipManager;
+    private final DataRelationshipManager dataRelationshipManager;
     private final ClassManager classManager;
 
     public GraphManager(String label, String propertyKey) {
         this.label = label;
         this.propertyKey = propertyKey;
-        relationshipManager = new RelationshipManager("HAS_CLASS");
-        dataRelationshipManager = new RelationshipManager("MATCHES");
+        relationshipManager = new PatternRelationshipManager("HAS_CLASS");
+        dataRelationshipManager = new DataRelationshipManager("MATCHES");
         classManager = new ClassManager("Class", "name");
     }
 
