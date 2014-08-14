@@ -222,10 +222,10 @@ public class PatternRecognitionResource {
      */
     private Node getRootPatternNode(GraphDatabaseService db) {
         Node patternNode;
-        patternNode = GRAPH_MANAGER.getOrCreateNode("(\\b[\\w'.-]+\\b)\\s(\\b[\\w'.-]+\\b)", db);
+        patternNode = GRAPH_MANAGER.getOrCreateNode(GraphManager.ROOT_TEMPLATE, db);
         if(!patternNode.hasProperty("matches")) {
             patternNode.setProperty("matches", 0);
-            patternNode.setProperty("threshold", 5);
+            patternNode.setProperty("threshold", GraphManager.MIN_THRESHOLD);
             patternNode.setProperty("root", 1);
         }
         return patternNode;

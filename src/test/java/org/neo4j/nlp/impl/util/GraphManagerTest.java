@@ -68,7 +68,7 @@ public class GraphManagerTest extends TestCase {
     public void testGetTemplate() throws Exception {
         @NotNull
         GraphManager graphManager = new GraphManager("pattern", "pattern");
-        System.out.println(graphManager.GetTemplate("(\\b[\\w'.-]+\\b)\\sis\\sknown\\s?(\\b[\\w'.-]+\\b)"));
+        System.out.println(graphManager.GetTemplate(graphManager.ROOT_TEMPLATE.replace("\\s", "\\sis\\sknown\\s")));
     }
 
     public static GraphDatabaseService setUpDb(GraphDatabaseService graphdb)
@@ -82,9 +82,9 @@ public class GraphManagerTest extends TestCase {
     @Test
     public void testGeneratePattern() throws Exception {
         GraphManager graphManager = new GraphManager("Pattern", "pattern");
-        String result = graphManager.GeneratePattern(0, new PatternCount("word", 2, null), "(\\b[\\w'.-]+\\b)\\s(\\b[\\w'.-]+\\b)");
+        String result = graphManager.GeneratePattern(0, new PatternCount("word", 2, null), graphManager.ROOT_TEMPLATE);
 
-        assertEquals("(\\b[\\w'.-]+\\b)\\sword\\s(\\b[\\w'.-]+\\b)", result);
+        assertEquals(graphManager.ROOT_TEMPLATE.replace("\\s", "\\sword\\s"), result);
     }
 
     @Test
@@ -188,7 +188,7 @@ public class GraphManagerTest extends TestCase {
      */
     private Node getRootPatternNode(GraphDatabaseService db, GraphManager graphManager) {
         Node patternNode;
-        patternNode = graphManager.getOrCreateNode("(\\b[\\w'.-]+\\b)\\s(\\b[\\w'.-]+\\b)", db);
+        patternNode = graphManager.getOrCreateNode(graphManager.ROOT_TEMPLATE, db);
         if(!patternNode.hasProperty("matches")) {
             patternNode.setProperty("matches", 0);
             patternNode.setProperty("threshold", 5);
