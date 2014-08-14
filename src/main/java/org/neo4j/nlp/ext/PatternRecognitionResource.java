@@ -286,38 +286,24 @@ public class PatternRecognitionResource {
      */
     private static String getSimilarClass() {
         return
-                "MATCH (class:Class { name: {name} })\n" +
-                "MATCH (class)<-[:HAS_CLASS]-(pattern:Pattern),\n" +
-                "      (pattern)-[:HAS_CLASS]->(classes:Class)\n" +
-                "WHERE classes.name <> 'CLASSIFY' AND coalesce(pattern.classes, 0) < 10\n" +
-                "WITH class.name as class, classes.name as relatedTo, count(pattern) as patterns\n" +
-                "WITH sum(patterns) as total\n" +
-                "MATCH (class:Class { name: {name} })\n" +
-                "MATCH (class)<-[:HAS_CLASS]-(pattern:Pattern),\n" +
-                "      (pattern)-[:HAS_CLASS]->(classes:Class)\n" +
-                "WHERE classes.name <> 'CLASSIFY' AND coalesce(pattern.classes, 0) < 10\n" +
-                "RETURN classes.name as class, toFloat(toFloat(count(pattern)) / toFloat(total)) as weight\n" +
-                "ORDER BY weight DESC\n" +
-                "LIMIT 100";
+                "MATCH (p1:Class { name: {name}})\n" +
+                "MATCH (p1)<-[x:HAS_CLASS]-(pattern:Pattern),\n" +
+                "      (pattern)-[y:HAS_CLASS]->(p2:Class)\n" +
+                "WITH SUM(1.0 / (pattern.classes + 1.0)) as rating, p1, p2\n" +
+                "ORDER BY rating DESC\n" +
+                "RETURN p2.name as class, rating as weight LIMIT 100";
     }
 
     private static String getContentClassification() {
         return
-                "MATCH (content:Data) WHERE id(content) = {id}\n" +
-                "WITH content\n" +
-                "MATCH (content)<-[:MATCHES]-(pattern:Pattern),\n" +
-                "      (class:Class)<-[:HAS_CLASS]-(pattern)\n" +
-                "WHERE class.name <> 'CLASSIFY' AND coalesce(pattern.classes, 0) < 10\n" +
-                "WITH class.name as relatedTo, count(pattern) as patterns\n" +
-                "WITH sum(patterns) as total\n" +
-                "MATCH (content:Data) WHERE id(content) = {id}\n" +
-                "WITH content, total\n" +
-                "MATCH (content)<-[:MATCHES]-(pattern:Pattern),\n" +
-                "      (class:Class)<-[:HAS_CLASS]-(pattern)\n" +
-                "WHERE class.name <> 'CLASSIFY' AND coalesce(pattern.classes, 0) < 10\n" +
-                "RETURN class.name as class, toFloat(toFloat(count(pattern)) / toFloat(total)) as weight\n" +
-                "ORDER BY weight DESC\n" +
-                "LIMIT 100";
+                "MATCH (data:Data) WHERE id(data) = {id}\n" +
+                "WITH data\n" +
+                "MATCH (data)<-[:MATCHES]-(pattern:Pattern),\n" +
+                "      (pattern)-[:HAS_CLASS]->(class:Class)\n" +
+                "WHERE class.name <> 'CLASSIFY'\n" +
+                "WITH SUM(1.0 / (pattern.classes + 1.0)) as rating, data, class\n" +
+                "ORDER BY rating DESC\n" +
+                "RETURN class.name as class, rating as weight LIMIT 100";
     }
 
 

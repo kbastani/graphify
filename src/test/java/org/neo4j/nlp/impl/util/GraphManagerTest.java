@@ -162,23 +162,14 @@ public class GraphManagerTest extends TestCase {
      */
     private static String getSimilarClassForText() {
         return
-            "MATCH (data:Data) WHERE id(data) = {id} WITH data\n" +
-            "MATCH (data)<-[:MATCHES]-(pattern:Pattern)," +
-            "      (class:Class)<-[:HAS_CLASS]-(pattern),\n" +
-            "      (pattern)-[:HAS_CLASS]->(classes:Class)\n" +
-            "WHERE classes.name <> 'CLASSIFY'\n" +
-            "WITH classes.name as relatedTo, count(pattern) as patterns\n" +
-            "WITH sum(patterns) as total\n" +
-            "MATCH (data:Data) WHERE id(data) = {id} WITH data, total\n" +
-            "MATCH (data)<-[:MATCHES]-(pattern:Pattern)," +
-            "      (class:Class)<-[:HAS_CLASS]-(pattern),\n" +
-            "      (pattern)-[:HAS_CLASS]->(classes:Class)\n" +
-            "WHERE classes.name <> 'CLASSIFY'\n" +
-            "WITH classes.name as label, toFloat(toFloat(count(pattern)) / toFloat(total)) as weight\n" +
-            "ORDER BY weight DESC\n" +
-            "LIMIT 1\n" +
-            "WITH label\n" +
-            "RETURN label\n";
+            "MATCH (data:Data) WHERE id(data) = {id}\n" +
+            "WITH data\n" +
+            "MATCH (data)<-[:MATCHES]-(pattern:Pattern),\n" +
+            "      (pattern)-[:HAS_CLASS]->(class:Class)\n" +
+            "WHERE class.name <> 'CLASSIFY'\n" +
+            "WITH SUM(1.0 / (pattern.classes + 1.0)) as rating, data, class\n" +
+            "ORDER BY rating DESC\n" +
+            "RETURN class.name as label LIMIT 1";
     }
 
     /**
