@@ -61,19 +61,19 @@
 <h4>
 <a name="train-the-natural-language-recognition-model-on-text-about-document-classification" class="anchor" href="#train-the-natural-language-recognition-model-on-text-about-document-classification"><span class="octicon octicon-link"></span></a>Train the natural language recognition model on text about 'Document classification':</h4>
 
-<pre><code>curl -H "Content-Type: application/json" -d '{"label": "Document classification", "text": "Documents may be classified according to their subjects or according to other attributes (such as document type, author, printing year etc.). In the rest of this article only subject classification is considered. There are two main philosophies of subject classification of documents: The content based approach and the request based approach."}' http://localhost:7474/service/pattern/training
+<pre><code>curl -H "Content-Type: application/json" -d '{"label": ["Document classification"], "text": "Documents may be classified according to their subjects or according to other attributes (such as document type, author, printing year etc.). In the rest of this article only subject classification is considered. There are two main philosophies of subject classification of documents: The content based approach and the request based approach."}' http://localhost:7474/service/pattern/training
 </code></pre>
 
 <h4>
-<a name="get-the-top-10-most-related-text-documents-in-the-database-for-the-supplied-string-of-text" class="anchor" href="#get-the-top-10-most-related-text-documents-in-the-database-for-the-supplied-string-of-text"><span class="octicon octicon-link"></span></a>Get the top 10 most related text documents in the database for the supplied string of text:</h4>
+<a name="get-the-most-related-classes-to-a-snippet-of-text" class="anchor" href="#get-the-most-related-classes-to-a-snippet-of-text"><span class="octicon octicon-link"></span></a>Get the most related classes to a snippet of text:</h4>
 
-<pre><code>curl -H "Content-Type: application/json" -d '{"text": "A document is a written or drawn representation of thoughts. Originating from the Latin Documentum meaning lesson - the verb means to teach, and is pronounced similarly, in the past it was usually used as a term for a written proof used as evidence."}' http://localhost:7474/service/pattern/related
+<pre><code>curl -H "Content-Type: application/json" -d '{"text": "A document is a written or drawn representation of thoughts. Originating from the Latin Documentum meaning lesson - the verb means to teach, and is pronounced similarly, in the past it was usually used as a term for a written proof used as evidence."}' http://localhost:7474/service/pattern/classify
 </code></pre>
 
 <h4>
-<a name="get-a-sorted-list-of-labels-that-are-most-related-to-the-label-document" class="anchor" href="#get-a-sorted-list-of-labels-that-are-most-related-to-the-label-document"><span class="octicon octicon-link"></span></a>Get a sorted list of labels that are most related to the label 'Document':</h4>
+<a name="get-a-sorted-list-of-labels-that-are-most-related-to-the-label-document-classification" class="anchor" href="#get-a-sorted-list-of-labels-that-are-most-related-to-the-label-document-classification"><span class="octicon octicon-link"></span></a>Get a sorted list of labels that are most related to the label 'Document classification':</h4>
 
-<pre><code>curl http://localhost:7474/service/pattern/similar/Document
+<pre><code>curl http://localhost:7474/service/pattern/similar/Document%20classification
 </code></pre>
 
 <h5>
@@ -98,76 +98,7 @@
     },
     {
         "weight": 0.05263157894736842,
-        "class": "Document classification"
-    }
-]
-</code></pre>
-
-<h4>
-<a name="get-a-sorted-list-of-labels-that-are-most-related-to-the-label-document-classification" class="anchor" href="#get-a-sorted-list-of-labels-that-are-most-related-to-the-label-document-classification"><span class="octicon octicon-link"></span></a>Get a sorted list of labels that are most related to the label 'Document classification':</h4>
-
-<pre><code>curl http://localhost:7474/service/pattern/similar/Document%20classification
-</code></pre>
-
-<h4>
-<a name="get-the-top-10-most-related-text-documents-in-the-database-for-the-supplied-string-of-text-1" class="anchor" href="#get-the-top-10-most-related-text-documents-in-the-database-for-the-supplied-string-of-text-1"><span class="octicon octicon-link"></span></a>Get the top 10 most related text documents in the database for the supplied string of text:</h4>
-
-<pre><code>curl -H "Content-Type: application/json" -d '{"text": "A document is a written or drawn representation of thoughts."}' http://localhost:7474/service/pattern/related
-</code></pre>
-
-<h5>
-<a name="example-response-1" class="anchor" href="#example-response-1"><span class="octicon octicon-link"></span></a>Example response:</h5>
-
-<pre><code>[
-    {
-        "count": 43,
-        "data": "A document is a written or drawn representation of thoughts. Originating from the Latin Documentum meaning lesson - the verb doceō means to teach, and is pronounced similarly, in the past it was usually used as a term for a written proof used as evidence. In the computer age, a document is usually used to describe a primarily textual file, along with its structure and design, such as fonts, colors and additional images.",
-        "label": "Document"
-    },
-    {
-        "count": 10,
-        "data": "AI research is highly technical and specialised, and is deeply divided into subfields that often fail to communicate with each other.[5] Some of the division is due to social and cultural factors: subfields have grown up around particular institutions and the work of individual researchers. AI research is also divided by several technical issues. Some subfields focus on the solution of specific problems. Others focus on one of several possible approaches or on the use of a particular tool or towards the accomplishment of particular applications.",
-        "label": "Artificial intelligence"
-    },
-    {
-        "count": 5,
-        "data": "Content based classification is classification in which the weight given to particular subjects in a document determines the class to which the document is assigned. It is, for example, a rule in much library classification that at least 20% of the content of a book should be about the class to which the book is assigned.",
-        "label": "Document"
-    },
-    {
-        "count": 5,
-        "data": "Iconic memory is a fast decaying store of visual information; a type of sensory memory that briefly stores an image which has been perceived for a small duration. ",
-        "label": "Memory"
-    },
-    {
-        "count": 5,
-        "data": "The room in which the experiment took place was infused with the scent of vanilla, as odour is a strong cue for memory. ",
-        "label": "Memory"
-    },
-    {
-        "count": 5,
-        "data": "Raw data, i.e., unprocessed data, refers to a collection of numbers, characters and is a relative term; data processing commonly occurs by stages, and the \"processed data\" from one stage may be considered the \"raw data\" of the next. ",
-        "label": "Data"
-    },
-    {
-        "count": 5,
-        "data": "Echoic memory is a fast decaying store of auditory information, another type of sensory memory that briefly stores sounds that have been perceived for short durations. ",
-        "label": "Memory"
-    },
-    {
-        "count": 5,
-        "data": "Natural language processing (NLP) is a field of computer science, artificial intelligence, and linguistics concerned with the interactions between computers and human (natural) languages. As such, NLP is related to the area of human–computer interaction. Many challenges in NLP involve natural language understanding, that is, enabling computers to derive meaning from human or natural language input, and others involve natural language generation.",
-        "label": "Natural language processing"
-    },
-    {
-        "count": 5,
-        "data": "One is able to place in memory information that resembles objects, places, animals or people in sort of a mental image. ",
-        "label": "Memory"
-    },
-    {
-        "count": 5,
-        "data": "Methods to optimize memorization Memorization is a method of learning that allows an individual to recall information verbatim. ",
-        "label": "Memory"
+        "class": "Document"
     }
 ]
 </code></pre>
