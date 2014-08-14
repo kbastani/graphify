@@ -27,7 +27,7 @@ import javax.xml.bind.annotation.XmlRootElement;
 @XmlAccessorType(XmlAccessType.FIELD)
 public class LabeledText {
     @XmlElement(required=true)
-    protected String text;
+    protected String[] text;
     @XmlElement(required=true)
     protected String[] label;
     @XmlElement(required=false)
@@ -37,7 +37,7 @@ public class LabeledText {
         this.label = label;
     }
 
-    public void setText(String text) {
+    public void setText(String[] text) {
         this.text = text;
     }
 
@@ -49,7 +49,7 @@ public class LabeledText {
         return label;
     }
 
-    public String getText() {
+    public String[] getText() {
         return text;
     }
 

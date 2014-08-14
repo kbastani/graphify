@@ -68,7 +68,7 @@ public class GraphManagerTest extends TestCase {
     public void testGetTemplate() throws Exception {
         @NotNull
         GraphManager graphManager = new GraphManager("pattern", "pattern");
-        System.out.println(graphManager.GetTemplate("(\\b[\\w'.]+\\b)\\sis\\sknown\\s?(\\b[\\w'.]+\\b)"));
+        System.out.println(graphManager.GetTemplate("(\\b[\\w'.-]+\\b)\\sis\\sknown\\s?(\\b[\\w'.-]+\\b)"));
     }
 
     public static GraphDatabaseService setUpDb(GraphDatabaseService graphdb)
@@ -82,9 +82,16 @@ public class GraphManagerTest extends TestCase {
     @Test
     public void testGeneratePattern() throws Exception {
         GraphManager graphManager = new GraphManager("Pattern", "pattern");
-        String result = graphManager.GeneratePattern(0, new PatternCount("word", 2, null), "(\\b[\\w'.]+\\b)\\s(\\b[\\w'.]+\\b)");
+        String result = graphManager.GeneratePattern(0, new PatternCount("word", 2, null), "(\\b[\\w'.-]+\\b)\\s(\\b[\\w'.-]+\\b)");
 
-        assertEquals("(\\b[\\w'.]+\\b)\\sword\\s(\\b[\\w'.]+\\b)", result);
+        assertEquals("(\\b[\\w'.-]+\\b)\\sword\\s(\\b[\\w'.-]+\\b)", result);
+    }
+
+    @Test
+    public void testClassEquality() throws Exception {
+        Object stringArray = new String[] { "test" };
+
+        assertTrue(stringArray.getClass() == String[].class);
     }
 
     @Test
@@ -117,6 +124,9 @@ public class GraphManagerTest extends TestCase {
         text.put("The twenty-first word in a paragraph end", "paragraph");
         text.put("The twenty-second word in a sentence end", "sentence");
         text.put("The twenty-third word in a document end", "document");
+        text.put("The twenty-fourth word in a document end", "document");
+        text.put("The twenty-fifth word in a document end", "document");
+        text.put("The twenty-sixth word in a document end", "document");
 
         for (String str : text.keySet())
         {
@@ -178,7 +188,7 @@ public class GraphManagerTest extends TestCase {
      */
     private Node getRootPatternNode(GraphDatabaseService db, GraphManager graphManager) {
         Node patternNode;
-        patternNode = graphManager.getOrCreateNode("(\\b[\\w'.]+\\b)\\s(\\b[\\w'.]+\\b)", db);
+        patternNode = graphManager.getOrCreateNode("(\\b[\\w'.-]+\\b)\\s(\\b[\\w'.-]+\\b)", db);
         if(!patternNode.hasProperty("matches")) {
             patternNode.setProperty("matches", 0);
             patternNode.setProperty("threshold", 5);

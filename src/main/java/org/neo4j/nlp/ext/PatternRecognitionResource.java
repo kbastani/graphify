@@ -63,39 +63,49 @@ public class PatternRecognitionResource {
         try {
             input = objectMapper.readValue(body, HashMap.class);
         } catch (Exception e) {
-            return Response.status(400).entity("{\"error\":\"Error parsing JSON.\"}").build();
+            return Response.status(200).entity("{\"error\":\"" + Arrays.toString(e.getStackTrace()) + "\"}").build();
         }
 
-        LabeledText labeledText = new LabeledText();
-        ArrayList labels = (ArrayList)input.get("label");
-
-        labeledText.setLabel((String[])labels.toArray(new String[labels.size()]));
-        if(input.containsKey("label"))
-            labeledText.setText((String)input.get("text"));
-        if(input.containsKey("focus")) {
-            labeledText.setFocus((int) input.get("focus"));
-        }
-        else
-        {
-            labeledText.setFocus(1);
-        }
-
-        // This method trains a model on a supplied label and text content
-        Node patternNode;
-
-        // Add first matcher
-        try ( Transaction tx = db.beginTx() ) {
-            patternNode = getRootPatternNode(db);
-            for (int i = 0; i < labeledText.getFocus(); i++) {
-                GRAPH_MANAGER.handlePattern(patternNode, labeledText.getText(), db, labeledText.getLabel());
+            LabeledText labeledText = new LabeledText();
+            ArrayList labels = (ArrayList)input.get("label");
+            ArrayList texts = new ArrayList();
+            if(input.get("text").getClass() == ArrayList.class) {
+                texts = (ArrayList)input.get("text");
             }
-            tx.success();
-        }
+            else
+            {
+               texts.add(input.get("text"));
+            }
 
-        return Response.ok()
-                .entity("{success:\"true\"}")
-                .type(MediaType.APPLICATION_JSON)
-                .build();
+            labeledText.setLabel((String[])labels.toArray(new String[labels.size()]));
+            labeledText.setText((String[])texts.toArray(new String[texts.size()]));
+
+            if(input.containsKey("focus")) {
+                labeledText.setFocus((int) input.get("focus"));
+            }
+            else
+            {
+                labeledText.setFocus(1);
+            }
+
+            // This method trains a model on a supplied label and text content
+            Node patternNode;
+
+            // Add first matcher
+            try ( Transaction tx = db.beginTx() ) {
+                patternNode = getRootPatternNode(db);
+                for (int i = 0; i < labeledText.getFocus(); i++) {
+                    for (String text : labeledText.getText())
+                        GRAPH_MANAGER.handlePattern(patternNode, text, db, labeledText.getLabel());
+                }
+                tx.success();
+            }
+
+            return Response.ok()
+                    .entity("{\"success\":\"true\"}")
+                    .type(MediaType.APPLICATION_JSON)
+                    .build();
+
     }
 
     /**
@@ -111,38 +121,45 @@ public class PatternRecognitionResource {
     public Response classify(String body, @Context GraphDatabaseService db) throws IOException {
         HashMap<String, Object> input;
         try {
+
             input = objectMapper.readValue(body, HashMap.class);
+
+            String text = null;
+
+            if(input.containsKey("text")) {
+                text = ((String) input.get("text"));
+            }
+            else
+            {
+                throw new Exception("Error parsing JSON");
+            }
+
+            // This method trains a model on a supplied label and text content
+            Node patternNode;
+
+            int contentId;
+
+            // Add first matcher
+            try ( Transaction tx = db.beginTx() ) {
+                patternNode = getRootPatternNode(db);
+                contentId = GRAPH_MANAGER.handlePattern(patternNode, text, db, new String[0]);
+                tx.success();
+            }
+
+            Map<String, Object> params = new HashMap<>();
+
+            params.put("id", contentId);
+
+            String similarClass = executeCypher(db, getContentClassification(), params);
+
+            return Response.ok()
+                    .entity(similarClass)
+                    .type(MediaType.APPLICATION_JSON)
+                    .build();
+
         } catch (Exception e) {
             return Response.status(400).entity("{\"error\":\"Error parsing JSON.\"}").build();
         }
-
-        LabeledText labeledText = new LabeledText();
-
-        if(input.containsKey("text"))
-            labeledText.setText((String)input.get("text"));
-
-        // This method trains a model on a supplied label and text content
-        Node patternNode;
-
-        int contentId;
-
-        // Add first matcher
-        try ( Transaction tx = db.beginTx() ) {
-            patternNode = getRootPatternNode(db);
-            contentId = GRAPH_MANAGER.handlePattern(patternNode, labeledText.getText(), db, new String[0]);
-            tx.success();
-        }
-
-        Map<String, Object> params = new HashMap<>();
-
-        params.put("id", contentId);
-
-        String similarClass = executeCypher(db, getContentClassification(), params);
-
-        return Response.ok()
-                .entity(similarClass)
-                .type(MediaType.APPLICATION_JSON)
-                .build();
     }
 
     /**
@@ -160,35 +177,42 @@ public class PatternRecognitionResource {
         HashMap<String, String> input;
         try {
             input = objectMapper.readValue(body, HashMap.class);
+
+            String text = null;
+
+            if(input.containsKey("text")) {
+                text = ((String) input.get("text"));
+            }
+            else
+            {
+                throw new Exception("Error parsing JSON");
+            }
+
+            // This method trains a model on a supplied label and text content
+            Node patternNode;
+
+            int dataId;
+
+            // Add first matcher
+            try ( Transaction tx = db.beginTx() ) {
+                patternNode = getRootPatternNode(db);
+                dataId = GRAPH_MANAGER.handlePattern(patternNode, text, db, new String[] {"CLASSIFY"});
+                tx.success();
+            }
+
+            Map<String, Object> params = new HashMap<>();
+
+            params.put("id", dataId);
+
+            String similarClass = executeCypher(db, getSimilarDataTemplate(), params);
+
+            return Response.ok()
+                    .entity(similarClass)
+                    .type(MediaType.APPLICATION_JSON)
+                    .build();
         } catch (Exception e) {
             return Response.status(400).entity("{\"error\":\"Error parsing JSON.\"}").build();
         }
-
-        LabeledText labeledText = new LabeledText();;
-        labeledText.setText(input.get("text"));
-
-        // This method trains a model on a supplied label and text content
-        Node patternNode;
-
-        int dataId;
-
-        // Add first matcher
-        try ( Transaction tx = db.beginTx() ) {
-            patternNode = getRootPatternNode(db);
-            dataId = GRAPH_MANAGER.handlePattern(patternNode, labeledText.getText(), db, new String[] {"CLASSIFY"});
-            tx.success();
-        }
-
-        Map<String, Object> params = new HashMap<>();
-
-        params.put("id", dataId);
-
-        String similarClass = executeCypher(db, getSimilarDataTemplate(), params);
-
-        return Response.ok()
-                .entity(similarClass)
-                .type(MediaType.APPLICATION_JSON)
-                .build();
     }
 
     /**
@@ -198,7 +222,7 @@ public class PatternRecognitionResource {
      */
     private Node getRootPatternNode(GraphDatabaseService db) {
         Node patternNode;
-        patternNode = GRAPH_MANAGER.getOrCreateNode("(\\b[\\w'.]+\\b)\\s(\\b[\\w'.]+\\b)", db);
+        patternNode = GRAPH_MANAGER.getOrCreateNode("(\\b[\\w'.-]+\\b)\\s(\\b[\\w'.-]+\\b)", db);
         if(!patternNode.hasProperty("matches")) {
             patternNode.setProperty("matches", 0);
             patternNode.setProperty("threshold", 5);
