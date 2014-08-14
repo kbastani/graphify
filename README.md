@@ -32,7 +32,7 @@ Examples
 
     curl -H "Content-Type: application/json" -d '{"text": "A document is a written or drawn representation of thoughts. Originating from the Latin Documentum meaning lesson - the verb means to teach, and is pronounced similarly, in the past it was usually used as a term for a written proof used as evidence."}' http://localhost:7474/service/pattern/classify
 
-####Get a sorted list of labels that are most related to the label 'Document':
+####Get a sorted list of labels that are most related to the label 'Document classification':
 
     curl http://localhost:7474/service/pattern/similar/Document%20classification
 
