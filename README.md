@@ -1,4 +1,4 @@
-Pattern4j
+Graphify
 ==========================
 
 This is a Neo4j unmanaged extension used for document and text classification using graph-based hierarchical pattern recognition.
