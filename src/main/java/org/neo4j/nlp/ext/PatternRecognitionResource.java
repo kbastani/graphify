@@ -36,7 +36,7 @@ import java.util.*;
  * To understand more about how hierarchical pattern recognition is used to create a natural language parsing model,
  * read the blog post "Hierarchical Pattern Recognition" at bit.ly/1lMjSm5
  */
-@Path("/pattern")
+@Path("/graphify")
 public class PatternRecognitionResource {
 
     static final ObjectMapper objectMapper  = new ObjectMapper();
