@@ -1,27 +1,25 @@
 package org.neo4j.nlp.impl.util;
 
 import com.google.gson.Gson;
-import junit.framework.TestCase;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.jetbrains.annotations.NotNull;
+import org.junit.Assert;
 import org.junit.Test;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
-import org.neo4j.test.TestGraphDatabaseFactory;
 import org.neo4j.nlp.helpers.GraphManager;
 import org.neo4j.nlp.models.PatternCount;
+import org.neo4j.test.TestGraphDatabaseFactory;
 
-import java.io.FileNotFoundException;
 import java.util.*;
 
-public class GraphManagerTest extends TestCase {
+public class GraphManagerTest {
 
     @Test
     public void testCypherJsonResult() throws Exception {
 
-        GraphDatabaseService db = new TestGraphDatabaseFactory().newImpermanentDatabaseBuilder().newGraphDatabase();
-        db = setUpDb(db);
+        GraphDatabaseService db;
+        db = setUpDb();
 
         Map<String, Object> params = new HashMap<>();
 
@@ -29,30 +27,27 @@ public class GraphManagerTest extends TestCase {
 
         String similarClass = executeCypher(db, getSimilarClass(), params);
 
-        assertEquals("[]", similarClass);
+        Assert.assertEquals("[]", similarClass);
 
     }
 
-    private static String executeCypher(GraphDatabaseService db, String cypher, Map<String, Object> params) throws FileNotFoundException {
+    private static String executeCypher(GraphDatabaseService db, String cypher, Map<String, Object> params) {
         org.neo4j.cypher.javacompat.ExecutionEngine engine;
         engine = new org.neo4j.cypher.javacompat.ExecutionEngine(db);
 
         org.neo4j.cypher.javacompat.ExecutionResult result;
 
-        try ( Transaction tx = db.beginTx(); ) {
+        try ( Transaction tx = db.beginTx() ) {
             result = engine.execute(cypher, params);
             tx.success();
         }
 
-        ObjectMapper objectMapper = new ObjectMapper();
-
-        List<Map> results = new ArrayList<>();
+        List<Map<String, Object>> results = new ArrayList<>();
         for (Map<String,Object> row : result) {
-            results.add(new LinkedHashMap(row));
+            results.add(new LinkedHashMap<>(row));
         }
-        String cypherJsonResult = new Gson().toJson(results); // for gogle Gson
 
-        return cypherJsonResult;
+        return new Gson().toJson(results);
     }
 
     private static String getSimilarClass() {
@@ -67,38 +62,34 @@ public class GraphManagerTest extends TestCase {
     @Test
     public void testGetTemplate() throws Exception {
         @NotNull
-        GraphManager graphManager = new GraphManager("pattern", "pattern");
-        System.out.println(graphManager.GetTemplate(graphManager.ROOT_TEMPLATE.replace("\\s", "\\sis\\sknown\\s")));
+        GraphManager graphManager = new GraphManager("pattern");
+        System.out.println(graphManager.GetTemplate(GraphManager.ROOT_TEMPLATE.replace("\\s", "\\sis\\sknown\\s")));
     }
 
-    public static GraphDatabaseService setUpDb(GraphDatabaseService graphdb)
+    private static GraphDatabaseService setUpDb()
     {
-        graphdb = new TestGraphDatabaseFactory().newImpermanentDatabaseBuilder().newGraphDatabase();
-        Transaction tx = graphdb.beginTx();
-
-        return graphdb;
+        return new TestGraphDatabaseFactory().newImpermanentDatabaseBuilder().newGraphDatabase();
     }
 
     @Test
     public void testGeneratePattern() throws Exception {
-        GraphManager graphManager = new GraphManager("Pattern", "pattern");
-        String result = graphManager.GeneratePattern(0, new PatternCount("word", 2, null), graphManager.ROOT_TEMPLATE);
+        GraphManager graphManager = new GraphManager("Pattern");
+        String result = graphManager.GeneratePattern(0, new PatternCount("word", 2, null), GraphManager.ROOT_TEMPLATE);
 
-        assertEquals(graphManager.ROOT_TEMPLATE.replace("\\s", "\\sword\\s"), result);
+        Assert.assertEquals(GraphManager.ROOT_TEMPLATE.replace("\\s", "\\sword\\s"), result);
     }
 
     @Test
     public void testClassEquality() throws Exception {
         Object stringArray = new String[] { "test" };
 
-        assertTrue(stringArray.getClass() == String[].class);
+        Assert.assertTrue(stringArray.getClass() == String[].class);
     }
 
     @Test
     public void testBackwardsPropagation() throws Exception {
-        GraphDatabaseService db = new TestGraphDatabaseFactory().newImpermanentDatabaseBuilder().newGraphDatabase();
-        db = setUpDb(db);
-        GraphManager graphManager = new GraphManager("Pattern", "pattern");
+        GraphDatabaseService db = setUpDb();
+        GraphManager graphManager = new GraphManager("Pattern");
         Node rootNode = getRootPatternNode(db, graphManager);
 
         Map<String, String> text = new HashMap<>();
@@ -143,17 +134,54 @@ public class GraphManagerTest extends TestCase {
         // Infer on text related to document
         params.put("id", document);
         String documentResult = executeCypher(db, getSimilarClassForText(), params);
-        assertEquals("Infer on document: ", documentResult, "[{\"label\":\"document\"}]");
+        Assert.assertEquals("Infer on document: ", documentResult, "[{\"label\":\"document\"}]");
 
         // Infer on text related to sentence
         params.put("id", sentence);
         String sentenceResult = executeCypher(db, getSimilarClassForText(), params);
-        assertEquals("Infer on sentence: ", sentenceResult, "[{\"label\":\"sentence\"}]");
+        Assert.assertEquals("Infer on sentence: ", sentenceResult, "[{\"label\":\"sentence\"}]");
 
         // Infer on text related to paragraph
         params.put("id", paragraph);
         String paragraphResult = executeCypher(db, getSimilarClassForText(), params);
-        assertEquals("Infer on paragraph: ", paragraphResult, "[{\"label\":\"paragraph\"}]");
+        Assert.assertEquals("Infer on paragraph: ", paragraphResult, "[{\"label\":\"paragraph\"}]");
+
+        String rootPattern;
+
+        Transaction tx = db.beginTx();
+        try {
+            rootPattern = (String)rootNode.getProperty("pattern");
+            tx.success();
+        }
+        finally {
+            tx.close();
+        }
+
+        String input = "The fiftieth word in a document end";
+        classifyInput(db, graphManager, rootPattern, input);
+        input = "The fiftieth word in a sentence end";
+        classifyInput(db, graphManager, rootPattern, input);
+        input = "The fiftieth word in a paragraph end";
+        classifyInput(db, graphManager, rootPattern, input);
+    }
+
+    private void classifyInput(GraphDatabaseService db, GraphManager graphManager, String rootPattern, String input) {
+        Map<String, Object> params;
+        List<Long> patternMatchers = PatternMatcher.match(rootPattern, input, db, graphManager);
+        params = new HashMap<>();
+        params.put("id", patternMatchers);
+        System.out.println(executeCypher(db, getSimilarClassForFeatureVector(), params));
+    }
+
+    private static String getSimilarClassForFeatureVector() {
+        return
+                "MATCH (pattern:Pattern) WHERE id(pattern) in {id}\n" +
+                "WITH pattern\n" +
+                "MATCH (pattern)-[:HAS_CLASS]->(class:Class)\n" +
+                "WHERE class.name <> 'CLASSIFY'\n" +
+                "WITH SUM(1.0 / (pattern.classes + 1.0)) as rating, class\n" +
+                "ORDER BY rating DESC\n" +
+                "RETURN class.name as label, rating";
     }
 
     /**
@@ -179,12 +207,15 @@ public class GraphManagerTest extends TestCase {
      */
     private Node getRootPatternNode(GraphDatabaseService db, GraphManager graphManager) {
         Node patternNode;
-        patternNode = graphManager.getOrCreateNode(graphManager.ROOT_TEMPLATE, db);
-        if(!patternNode.hasProperty("matches")) {
-            patternNode.setProperty("matches", 0);
-            patternNode.setProperty("threshold", 5);
-            patternNode.setProperty("root", 1);
-            patternNode.setProperty("phrase", "{0} {1}");
+        patternNode = graphManager.getOrCreateNode(GraphManager.ROOT_TEMPLATE, db);
+        try(Transaction tx = db.beginTx()) {
+            if (!patternNode.hasProperty("matches")) {
+                patternNode.setProperty("matches", 0);
+                patternNode.setProperty("threshold", GraphManager.MIN_THRESHOLD);
+                patternNode.setProperty("root", 1);
+                patternNode.setProperty("phrase", "{0} {1}");
+            }
+            tx.success();
         }
         return patternNode;
     }

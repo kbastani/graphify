@@ -27,7 +27,7 @@ public class PatternCount
 {
     private int count = 0;
     private String pattern = "";
-    private List<Node> dataNodes = new ArrayList<>();
+    private final List<Node> dataNodes = new ArrayList<>();
 
     public PatternCount(String pattern, int count, Node dataNode)
     {

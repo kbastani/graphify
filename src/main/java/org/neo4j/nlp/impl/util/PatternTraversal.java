@@ -30,12 +30,12 @@ import java.util.*;
  * recursively in order to apply newly mined patterns that did not exist when a piece of data was
  * originally processed.
  */
-public class PatternTraversal implements Runnable {
+class PatternTraversal implements Runnable {
     private Thread t;
     private String threadName;
-    private GraphManager graphManager;
-    private Node patternNode;
-    private GraphDatabaseService db;
+    private final GraphManager graphManager;
+    private final Node patternNode;
+    private final GraphDatabaseService db;
     private List<Integer> sentenceHistory = new ArrayList<>();
     private boolean isRunning = false;
     private String className;

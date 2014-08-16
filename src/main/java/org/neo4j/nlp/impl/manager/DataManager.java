@@ -12,7 +12,7 @@
  * the License.
  */
 
-package org.neo4j.nlp.helpers;
+package org.neo4j.nlp.impl.manager;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -22,34 +22,41 @@ import org.neo4j.graphdb.index.UniqueFactory;
 import java.util.Map;
 
 /**
- * This class manages a cache wrapper for a set of label classes used to label unrecognized data in the
+ * This data manages a cache wrapper for a set of label dataes used to label unrecognized data in the
  * pattern recognition hierarchy.
  */
-public class ClassManager {
+public class DataManager {
 
-    public static final Cache<String, Long> classCache = CacheBuilder.newBuilder().maximumSize(20000000).build();
-    public UniqueFactory<Node> classFactory;
+    public static final Cache<String, Long> dataCache = CacheBuilder.newBuilder().maximumSize(20000000).build();
+    public UniqueFactory<Node> dataFactory;
     private String label;
     private String propertyKey;
-    Label nodeLabel;
+    private Label dynamicLabel;
 
-    public ClassManager(String label, String propertyKey)
+    public DataManager(String label, String propertyKey)
     {
         this.label = label;
         this.propertyKey = propertyKey;
-        nodeLabel = DynamicLabel.label(label);
+        dynamicLabel = DynamicLabel.label(label);
     }
 
     public Node getOrCreateNode(String keyValue, GraphDatabaseService db) {
         Node nodeStart = null;
-        Long nodeId = classCache.getIfPresent(keyValue);
+        Long nodeId = dataCache.getIfPresent(keyValue);
 
         if (nodeId == null) {
-            ResourceIterator<Node> results = db.findNodesByLabelAndProperty(DynamicLabel.label(label), propertyKey, keyValue).iterator();
+            Transaction tx = db.beginTx();
+            try {
+                ResourceIterator<Node> results = db.findNodesByLabelAndProperty(dynamicLabel, propertyKey, keyValue).iterator();
 
-            if (results.hasNext()) {
-                nodeStart = results.next();
-                classCache.put(keyValue, nodeStart.getId());
+                if (results.hasNext()) {
+                    nodeStart = results.next();
+                    dataCache.put(keyValue, nodeStart.getId());
+                }
+                tx.success();
+            } catch (Exception e)
+            {
+                throw  e;
             }
 
         } else {
@@ -60,23 +67,24 @@ public class ClassManager {
             Transaction tx = db.beginTx();
             try {
                 createNodeFactory(db);
-                nodeStart = classFactory.getOrCreate(propertyKey, keyValue);
-                nodeStart.addLabel(nodeLabel);
+                nodeStart = dataFactory.getOrCreate(propertyKey, keyValue);
+                nodeStart.addLabel(dynamicLabel);
                 tx.success();
             } catch (final Exception e) {
                 tx.failure();
             } finally {
-                tx.finish();
-                classCache.put(keyValue, nodeStart.getId());
+                tx.close();
+                dataCache.put(keyValue, nodeStart.getId());
             }
         }
 
         return nodeStart;
     }
 
+
     private void createNodeFactory(GraphDatabaseService db) {
-        if (classFactory == null) {
-            classFactory = new UniqueFactory.UniqueNodeFactory(db, label) {
+        if (dataFactory == null) {
+            dataFactory = new UniqueFactory.UniqueNodeFactory(db, label) {
                 @Override
                 protected void initialize(Node created, Map<String, Object> properties) {
                     created.setProperty(propertyKey, properties.get(propertyKey));

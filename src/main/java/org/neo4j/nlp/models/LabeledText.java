@@ -27,11 +27,11 @@ import javax.xml.bind.annotation.XmlRootElement;
 @XmlAccessorType(XmlAccessType.FIELD)
 public class LabeledText {
     @XmlElement(required=true)
-    protected String[] text;
+    private String[] text;
     @XmlElement(required=true)
-    protected String[] label;
+    private String[] label;
     @XmlElement(required=false)
-    protected int focus;
+    private int focus;
 
     public void setLabel(String[] label) {
         this.label = label;

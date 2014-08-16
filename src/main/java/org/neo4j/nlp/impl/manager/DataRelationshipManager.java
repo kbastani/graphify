@@ -12,7 +12,7 @@
  * the License.
  */
 
-package org.neo4j.nlp.helpers;
+package org.neo4j.nlp.impl.manager;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -33,14 +33,14 @@ import static org.neo4j.graphdb.DynamicRelationshipType.withName;
 public class DataRelationshipManager {
 
     public static final Cache<Long, List<Long>> relationshipCache = CacheBuilder.newBuilder().maximumSize(20000000).build();
-    private String relationshipType;
+    private final String relationshipType;
 
-    public DataRelationshipManager(String relationshipType)
+    public DataRelationshipManager()
     {
-        this.relationshipType = relationshipType;
+        this.relationshipType = "MATCHES";
     }
 
-    public List<Long> getOrCreateNode(Long start, Long end, GraphDatabaseService db) {
+    public void getOrCreateNode(Long start, Long end, GraphDatabaseService db) {
         List<Long> relList = relationshipCache.getIfPresent(start);
 
         Node startNode = db.getNodeById(start);
@@ -71,12 +71,10 @@ public class DataRelationshipManager {
             } catch (final Exception e) {
                 tx.failure();
             } finally {
-                tx.finish();
+                tx.close();
                 relList.add(end);
                 relationshipCache.put(start, relList);
             }
         }
-
-        return relList;
     }
 }

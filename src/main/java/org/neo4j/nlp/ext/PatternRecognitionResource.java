@@ -21,6 +21,7 @@ import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.nlp.helpers.GraphManager;
+import org.neo4j.nlp.impl.util.PatternMatcher;
 import org.neo4j.nlp.models.LabeledText;
 
 import javax.ws.rs.*;
@@ -39,12 +40,11 @@ import java.util.*;
 @Path("/graphify")
 public class PatternRecognitionResource {
 
-    static final ObjectMapper objectMapper  = new ObjectMapper();
-    static final GraphManager GRAPH_MANAGER  = new GraphManager("Pattern", "pattern");
-    static GraphDatabaseService graphDB;
+    private static final ObjectMapper objectMapper  = new ObjectMapper();
+    private static final GraphManager GRAPH_MANAGER  = new GraphManager("Pattern");
 
     public PatternRecognitionResource(@Context GraphDatabaseService db) {
-        graphDB = db;
+
     }
 
     /**
@@ -135,22 +135,10 @@ public class PatternRecognitionResource {
             }
 
             // This method trains a model on a supplied label and text content
-            Node patternNode;
-
-            int contentId;
-
-            // Add first matcher
-            try ( Transaction tx = db.beginTx() ) {
-                patternNode = getRootPatternNode(db);
-                contentId = GRAPH_MANAGER.handlePattern(patternNode, text, db, new String[0]);
-                tx.success();
-            }
-
+            List<Long> patternMatchers = PatternMatcher.match(GraphManager.ROOT_TEMPLATE, text, db, GRAPH_MANAGER);
             Map<String, Object> params = new HashMap<>();
-
-            params.put("id", contentId);
-
-            String similarClass = executeCypher(db, getContentClassification(), params);
+            params.put("id", patternMatchers);
+            String similarClass = executeCypher(db, getSimilarClassForFeatureVector(), params);
 
             return Response.ok()
                     .entity(similarClass)
@@ -158,7 +146,7 @@ public class PatternRecognitionResource {
                     .build();
 
         } catch (Exception e) {
-            return Response.status(400).entity("{\"error\":\"Error parsing JSON.\"}").build();
+            return Response.status(400).entity(String.format("{\"error\":\"%s %s\"}", e.toString(), Arrays.toString(e.getStackTrace()))).build();
         }
     }
 
@@ -292,6 +280,17 @@ public class PatternRecognitionResource {
                 "WITH SUM(1.0 / (pattern.classes + 1.0)) as rating, p1, p2\n" +
                 "ORDER BY rating DESC\n" +
                 "RETURN p2.name as class, rating as weight LIMIT 100";
+    }
+
+    private static String getSimilarClassForFeatureVector() {
+        return
+                "MATCH (pattern:Pattern) WHERE id(pattern) in {id}\n" +
+                "WITH pattern\n" +
+                "MATCH (pattern)-[:HAS_CLASS]->(class:Class)\n" +
+                "WHERE class.name <> 'CLASSIFY'\n" +
+                "WITH SUM(1.0 / (pattern.classes + 1.0)) as rating, class\n" +
+                "ORDER BY rating DESC\n" +
+                "RETURN class.name as label, rating as weight LIMIT 100";
     }
 
     private static String getContentClassification() {

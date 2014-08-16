@@ -20,14 +20,17 @@ import org.neo4j.graphdb.*;
 import org.neo4j.graphdb.index.UniqueFactory;
 import org.neo4j.graphdb.traversal.Evaluators;
 import org.neo4j.helpers.collection.IteratorUtil;
+import org.neo4j.nlp.impl.cache.ClassRelationshipCache;
+import org.neo4j.nlp.impl.cache.PatternRelationshipCache;
+import org.neo4j.nlp.impl.manager.ClassManager;
+import org.neo4j.nlp.impl.manager.DataManager;
+import org.neo4j.nlp.impl.manager.DataRelationshipManager;
 import org.neo4j.nlp.models.PatternCount;
 
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import static org.neo4j.graphdb.DynamicRelationshipType.withName;
 
 /**
  * The GraphManager class is a management wrapper around a cache of patterns that are extracted from input
@@ -41,64 +44,94 @@ import static org.neo4j.graphdb.DynamicRelationshipType.withName;
  */
 public class GraphManager {
 
-    private static final Cache<String, Long> patternCache = CacheBuilder.newBuilder().maximumSize(20000000).build();
-    private static final Cache<String, String> edgeCache = CacheBuilder.newBuilder().maximumSize(2000000).build();
-    private UniqueFactory<Node> patternFactory;
     private final String label;
     private final String propertyKey;
-    private final PatternRelationshipManager relationshipManager;
+
+    private UniqueFactory<Node> patternFactory;
+
+    public static final Cache<String, Long> patternCache = CacheBuilder.newBuilder().maximumSize(20000000).build();
+    public static final Cache<Long, String> inversePatternCache = CacheBuilder.newBuilder().maximumSize(20000000).build();
+    public static final Cache<String, String> edgeCache = CacheBuilder.newBuilder().maximumSize(2000000).build();
+
+    private final ClassRelationshipCache classRelationshipCache;
+    private final PatternRelationshipCache patternRelationshipCache;
+
     private final DataRelationshipManager dataRelationshipManager;
+    private final DataManager dataManager;
     private final ClassManager classManager;
+
     public static final int MIN_THRESHOLD = 5;
-    public static final String WILDCARD_TEMPLATE = "\\(\\\\b\\[\\\\w'.-\\]\\+\\\\b\\)";
+    private static final String WILDCARD_TEMPLATE = "\\(\\\\b\\[\\\\w'.-\\]\\+\\\\b\\)";
     public static final String ROOT_TEMPLATE = "(\\b[\\w'.-]+\\b)\\s(\\b[\\w'.-]+\\b)";
 
-    public GraphManager(String label, String propertyKey) {
+    public GraphManager(String label) {
         this.label = label;
-        this.propertyKey = propertyKey;
-        relationshipManager = new PatternRelationshipManager("HAS_CLASS");
-        dataRelationshipManager = new DataRelationshipManager("MATCHES");
+        this.propertyKey = "pattern";
+        classRelationshipCache = new ClassRelationshipCache();
+        patternRelationshipCache = new PatternRelationshipCache();
+        dataRelationshipManager = new DataRelationshipManager();
+        dataManager = new DataManager("Data", "value");
         classManager = new ClassManager("Class", "name");
     }
 
+    public List<String> getNextLayer(Long nodeId, GraphDatabaseService db)
+    {
+        List<String> patterns = new ArrayList<>();
+        for(Long id : patternRelationshipCache.getRelationships(nodeId, db, this))
+        {
+            patterns.add(inversePatternCache.getIfPresent(id));
+        }
+
+        return patterns;
+    }
+
     public Node getOrCreateNode(String keyValue, GraphDatabaseService db) {
-        Node nodeStart = null;
-        Long nodeId = patternCache.getIfPresent(keyValue);
+        if(keyValue != null) {
+            Node nodeStart = null;
+            Long nodeId = patternCache.getIfPresent(keyValue);
 
-        if (nodeId == null) {
-            ResourceIterator<Node> results = db.findNodesByLabelAndProperty(DynamicLabel.label(label), propertyKey, keyValue).iterator();
-
-            if (results.hasNext()) {
-                nodeStart = results.next();
-                patternCache.put(keyValue, nodeStart.getId());
-            }
-
-        } else {
-            nodeStart = db.getNodeById(nodeId);
-        }
-
-        if (nodeStart == null) {
-            Transaction tx = db.beginTx();
-            try {
-                createNodeFactory(db);
-                nodeStart = patternFactory.getOrCreate(propertyKey, keyValue);
-                Label nodeLabel = DynamicLabel.label(label);
-                nodeStart.addLabel(nodeLabel);
-                if (label.equals("Pattern")) {
-                    Label stateMachine = DynamicLabel.label("Active");
-                    nodeStart.addLabel(stateMachine);
+            if (nodeId == null) {
+                try(Transaction tx = db.beginTx()) {
+                    ResourceIterator<Node> results = db.findNodesByLabelAndProperty(DynamicLabel.label(label), propertyKey, keyValue).iterator();
+                    if (results.hasNext()) {
+                        nodeStart = results.next();
+                        patternCache.put(keyValue, nodeStart.getId());
+                        inversePatternCache.put(nodeStart.getId(), keyValue);
+                    }
+                    tx.success();
+                    tx.close();
                 }
-                tx.success();
-            } catch (final Exception e) {
-                System.out.println(e);
-                tx.failure();
-            } finally {
-                if(nodeStart != null)
-                    patternCache.put(keyValue, nodeStart.getId());
+            } else {
+                try(Transaction tx = db.beginTx()) {
+                    nodeStart = db.getNodeById(nodeId);
+                    tx.success();
+                    tx.close();
+                }
             }
-        }
 
-        return nodeStart;
+            if (nodeStart == null) {
+                try(Transaction tx = db.beginTx()) {
+                    createNodeFactory(db);
+                    nodeStart = patternFactory.getOrCreate(propertyKey, keyValue);
+                    Label nodeLabel = DynamicLabel.label(label);
+                    nodeStart.addLabel(nodeLabel);
+                    tx.success();
+                    tx.close();
+                } finally {
+
+                    if (nodeStart != null) {
+                        patternCache.put(keyValue, nodeStart.getId());
+                        inversePatternCache.put(nodeStart.getId(), keyValue);
+                    }
+                }
+            }
+
+            return nodeStart;
+        }
+        else
+        {
+            return null;
+        }
     }
 
     private enum Rels implements RelationshipType {
@@ -114,22 +147,16 @@ public class GraphManager {
      * @return Returns the ID of the data node that represents the input text as a node within the Neo4j graph database.
      */
     public int handlePattern(Node patternNode, String text, GraphDatabaseService db, String[] label) {
-        List<Integer> nodeMatches = new ArrayList<>();
         Node dataNode;
+        dataNode = dataManager.getOrCreateNode(text, db);
         // Get child patterns
-        try (Transaction tx = db.beginTx()) {
+        Transaction tx = db.beginTx();
+        db.getNodeById(dataNode.getId()).setProperty("label", label);
+        tx.success();
 
-            GraphManager graphManager = new GraphManager("Data", "value");
-            dataNode = graphManager.getOrCreateNode(text, db);
-            dataNode.setProperty("label", label);
-            dataNode.setProperty("time", System.currentTimeMillis() / 1000L);
-            tx.success();
-        }
 
-        try (Transaction tx = db.beginTx()) {
-            recognizeMatch(db, patternNode, dataNode, label, 1, nodeMatches, true);
-            tx.success();
-        }
+            recognizeMatch(db, patternNode, dataNode, label, 1, true);
+
 
         return (int)dataNode.getId();
     }
@@ -142,16 +169,13 @@ public class GraphManager {
      * @param dataNode The data node that contains the input text that is currently being trained on.
      * @param label The name of the label that should be associated with any patterns that are mined in the supplied text snippet contained within the text parameter.
      * @param depth The level of depth that the algorithm is currently operating a matching algorithm on.
-     * @param nodeMatches A list of Neo4j node IDs that represent each pattern node that has previously been matched in the recursive matching process.
      * @param cont A flag indicating whether or not to continue recursive matching,
      */
-    private void recognizeMatch(GraphDatabaseService db, Node patternNode, Node dataNode, String[] label, int depth, List<Integer> nodeMatches, boolean cont) {
+    private void recognizeMatch(GraphDatabaseService db, Node patternNode, Node dataNode, String[] label, int depth, boolean cont) {
         ResourceIterable<Node> nodes;
         int resultCount;
-        boolean active;
         boolean isRoot;
         try (Transaction tx = db.beginTx()) {
-
             nodes = db.traversalDescription()
                     .depthFirst()
                     .relationships(Rels.NEXT, Direction.OUTGOING)
@@ -161,7 +185,6 @@ public class GraphManager {
                     .nodes();
 
             resultCount = IteratorUtil.count(nodes);
-            active = patternNode.hasLabel(DynamicLabel.label("Active"));
             isRoot = patternNode.hasProperty("root");
             tx.success();
         }
@@ -171,41 +194,18 @@ public class GraphManager {
                 boolean hasMatch = false;
 
                 for (Node currentNode : nodes) {
-                    boolean result = matchLeaves(db, dataNode, currentNode, label, depth, nodeMatches);
-                    if(!hasMatch && result) {
-                        hasMatch = true;
-                    }
-                }
-
-
-                if (!hasMatch && !nodeMatches.contains((int)patternNode.getId()))
-                {
-                    nodeMatches.add((int)patternNode.getId());
+                    boolean result = matchLeaves(db, dataNode, currentNode, label, depth);
+                    if(!hasMatch && result) hasMatch = true;
                 }
 
                 if (isRoot && cont)
-                    matchLeaves(db, dataNode, patternNode, label, depth, nodeMatches);
+                    matchLeaves(db, dataNode, patternNode, label, depth);
 
                 tx.success();
             }
         } else {
-            if (active && cont) {
-                try (Transaction tx = db.beginTx()) {
-
-                    boolean result = matchLeaves(db, dataNode, patternNode, label, depth, nodeMatches);
-                    boolean hasMatch = false;
-
-                    if(!hasMatch && result) {
-                        hasMatch = true;
-                    }
-
-                    if (!hasMatch && !nodeMatches.contains((int)patternNode.getId()))
-                    {
-                        nodeMatches.add((int)patternNode.getId());
-                    }
-
-                    tx.success();
-                }
+            if (cont) {
+                    matchLeaves(db, dataNode, patternNode, label, depth);
             }
         }
     }
@@ -217,28 +217,37 @@ public class GraphManager {
      * @param currentNode The current pattern node that the recursive pattern recognition algorithm is operating on within the hierarchy.
      * @param label The name of the label that should be associated with any patterns that are mined in the supplied text snippet contained within the text parameter.
      * @param depth The level of depth that the algorithm is currently operating a matching algorithm on.
-     * @param nodeMatches A list of Neo4j node IDs that represent each pattern node that has previously been matched in the recursive matching process.
      * @return Returns a flag that indicates whether or not the currentPattern parameter's RegEx matched the dataNode parameter representing the input text to train on.
      */
-    private boolean matchLeaves(GraphDatabaseService db, Node dataNode, Node currentNode, String[] label, int depth, List<Integer> nodeMatches) {
+    private boolean matchLeaves(GraphDatabaseService db, Node dataNode, Node currentNode, String[] label, int depth) {
 
-        Pattern p = Pattern.compile("(?i)" + (String) currentNode.getProperty("pattern"));
-        Matcher m = p.matcher((String) dataNode.getProperty("value"));
+        String pattern;
+        String value;
+        try(Transaction tx = db.beginTx())
+        {
+            pattern = (String)currentNode.getProperty("pattern");
+            value = (String) dataNode.getProperty("value");
+            tx.success();
+        }
+
+        Pattern p = Pattern.compile("(?i)" + pattern);
+        Matcher m = p.matcher(value);
         int localMatchCount = 0;
         while(m.find())
             localMatchCount++;
 
         if(localMatchCount > 0) {
             // Increment match
+
+
+            // Relate to label
+            for (String labelName : label) {
+                Node labelNode = classManager.getOrCreateNode(labelName, db);
+                classRelationshipCache.getOrCreateRelationship(currentNode.getId(), labelNode.getId(), db, this);
+            }
+            dataRelationshipManager.getOrCreateNode(currentNode.getId(), dataNode.getId(), db);
+
             try (Transaction tx = db.beginTx()) {
-
-                // Relate to label
-                for (String labelName : label) {
-                    Node labelNode = classManager.getOrCreateNode(labelName, db);
-                    relationshipManager.getOrCreateNode(currentNode.getId(), labelNode.getId(), db);
-                }
-                dataRelationshipManager.getOrCreateNode(currentNode.getId(), dataNode.getId(), db);
-
                 currentNode.setProperty("matches", ((int) currentNode.getProperty("matches")) + localMatchCount);
                 tx.success();
             }
@@ -257,9 +266,9 @@ public class GraphManager {
                 populatePatternMap(db, currentNode, matchDictionary);
 
                 // Generate nodes for every wildcard
-                generateChildPatterns(db, dataNode, currentNode, label, depth, nodeMatches, matchDictionary);
+                generateChildPatterns(db, dataNode, currentNode, label, depth, matchDictionary);
             }
-            recognizeMatch(db, currentNode, dataNode, label, depth + 1, nodeMatches, false);
+            recognizeMatch(db, currentNode, dataNode, label, depth + 1, false);
         }
 
 
@@ -274,15 +283,14 @@ public class GraphManager {
      * @param currentNode The current pattern node that the recursive pattern recognition algorithm is operating on within the hierarchy.
      * @param label The name of the label that should be associated with any patterns that are mined in the supplied text snippet contained within the text parameter.
      * @param depth The level of depth that the algorithm is currently operating a matching algorithm on.
-     * @param nodeMatches A list of Neo4j node IDs that represent each pattern node that has previously been matched in the recursive matching process.
      * @param matchDictionary A map that has been populated with new patterns extracted from data attached to the base pattern.
      */
-    private void generateChildPatterns(GraphDatabaseService db, Node dataNode, Node currentNode, String[] label, int depth, List<Integer> nodeMatches, Map<Integer, Map<String, PatternCount>> matchDictionary) {
+    private void generateChildPatterns(GraphDatabaseService db, Node dataNode, Node currentNode, String[] label, int depth, Map<Integer, Map<String, PatternCount>> matchDictionary) {
         for (int i = 0; i < matchDictionary.size(); i++) {
 
             int counter = 0;
             // Order by match count desc, limit 1
-            List<PatternCount> patternCounts = new ArrayList(matchDictionary.get(i + 1).values());
+            List<PatternCount> patternCounts = new ArrayList<>(matchDictionary.get(i + 1).values());
             Collections.sort(patternCounts, (o1, o2) -> o2.getCount() - o1.getCount());
             patternCounts = patternCounts.stream()
                     .filter((pc) -> pc.getCount() > 1)
@@ -311,7 +319,7 @@ public class GraphManager {
                         }
 
                         if (edgeCache.getIfPresent((int) currentNode.getId() + "->" + (int) leafNode.getId()) == null) {
-                            currentNode.createRelationshipTo(leafNode, withName("NEXT"));
+                            patternRelationshipCache.getOrCreateRelationship(currentNode.getId(), leafNode.getId(), db, this);
                         }
 
                         leafNode.setProperty("matches", patternCount.getDataNodes().size());
@@ -326,13 +334,13 @@ public class GraphManager {
                             for(String labelName : dataLabels)
                             {
                                 Node labelNode = classManager.getOrCreateNode(labelName, db);
-                                relationshipManager.getOrCreateNode(leafNode.getId(), labelNode.getId(), db);
+                                classRelationshipCache.getOrCreateRelationship(leafNode.getId(), labelNode.getId(), db, this);
                             }
                             dataRelationshipManager.getOrCreateNode(leafNode.getId(), dn.getId(), db);
                         });
                     }
                     else {
-                        recognizeMatch(db, leafNode, dataNode, label, depth + 1, nodeMatches, true);
+                        recognizeMatch(db, leafNode, dataNode, label, depth + 1, true);
                     }
 
                     tx.success();
@@ -356,7 +364,7 @@ public class GraphManager {
                 .traverse(currentNode)
                 .nodes()) {
 
-            Pattern dataPattern = Pattern.compile("(?i)" + (String) currentNode.getProperty("pattern"));
+            Pattern dataPattern = Pattern.compile("(?i)" + currentNode.getProperty("pattern"));
             Matcher dataMatch = dataPattern.matcher((String) matchNodes.getProperty("value"));
 
             // Create leaf nodes
@@ -377,37 +385,6 @@ public class GraphManager {
                         }
                     }
                 }
-            }
-        }
-    }
-
-    /**
-     * Propagates pattern binding breadth-first in order to connect new pattern nodes to historical data.
-     * @param db The Neo4j GraphDatabaseService that contains the pattern recognition hierarchy.
-     * @param currentNode The current pattern node that the recursive pattern recognition algorithm is operating on within the hierarchy.
-     * @param label The name of the label that should be associated with any patterns that are mined in the supplied text snippet contained within the text parameter.
-     * @param depth The level of depth that the algorithm is currently operating a matching algorithm on.
-     * @param nodeMatches A list of Neo4j node IDs that represent each pattern node that has previously been matched in the recursive matching process.
-     * @param leafNode A newly created pattern that should now be matched on data up the hierarchy.
-     */
-    private void propagatePatternsBreadthFirst(GraphDatabaseService db, Node currentNode, String[] label, int depth, List<Integer> nodeMatches, Node leafNode) {
-        // Traverse breadth-first to bind new pattern to data nodes up the hierarchy
-        for (Node patternNodes : db.traversalDescription()
-                .breadthFirst()
-                .relationships(Rels.NEXT, Direction.INCOMING)
-                .evaluator(Evaluators.fromDepth(1))
-                .evaluator(Evaluators.toDepth(1))
-                .traverse(currentNode)
-                .nodes()) {
-            for (Node dataNodes : db.traversalDescription()
-                    .depthFirst()
-                    .relationships(Rels.MATCHES, Direction.OUTGOING)
-                    .evaluator(Evaluators.fromDepth(1))
-                    .evaluator(Evaluators.toDepth(1))
-                    .traverse(patternNodes)
-                    .nodes()) {
-                System.out.println(leafNode.getProperty("phrase"));
-                recognizeMatch(db, leafNode, dataNodes, (String[])dataNodes.getProperty("label"), depth, nodeMatches, true);
             }
         }
     }
@@ -447,7 +424,7 @@ public class GraphManager {
 
         while (regexMatcher.find()) {
             if (counter == i) {
-                StringBuffer sb = new StringBuffer();
+                StringBuilder sb = new StringBuilder();
                 sb.append(WILDCARD_TEMPLATE);
 
                 regexMatcher.appendReplacement(s, ((counter == 0) ? sb.toString() + ("\\\\s" + patternCount.getPattern()) : (patternCount.getPattern() + "\\\\s") + sb.toString()));
