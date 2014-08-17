@@ -18,6 +18,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import org.neo4j.graphdb.*;
 import org.neo4j.graphdb.index.UniqueFactory;
+import org.neo4j.nlp.abstractions.Manager;
 
 import java.util.Map;
 
@@ -25,7 +26,7 @@ import java.util.Map;
  * This data manages a cache wrapper for a set of label dataes used to label unrecognized data in the
  * pattern recognition hierarchy.
  */
-public class DataManager {
+public class DataNodeManager extends Manager {
 
     public static final Cache<String, Long> dataCache = CacheBuilder.newBuilder().maximumSize(20000000).build();
     public UniqueFactory<Node> dataFactory;
@@ -33,13 +34,14 @@ public class DataManager {
     private String propertyKey;
     private Label dynamicLabel;
 
-    public DataManager(String label, String propertyKey)
+    public DataNodeManager(String label, String propertyKey)
     {
         this.label = label;
         this.propertyKey = propertyKey;
         dynamicLabel = DynamicLabel.label(label);
     }
 
+    @Override
     public Node getOrCreateNode(String keyValue, GraphDatabaseService db) {
         Node nodeStart = null;
         Long nodeId = dataCache.getIfPresent(keyValue);

@@ -29,16 +29,6 @@ public abstract class RelationshipCache {
         relList = relCache.getIfPresent(start);
         Node startNode = graphManager.getOrCreateNode(GraphManager.inversePatternCache.getIfPresent(start), db);
 
-//        Transaction tx = db.beginTx();
-//        try {
-//            startNode = db.getNodeById(start);
-//            tx.success();
-//        }finally {
-//            tx.close();
-//        }
-
-
-
         if(relList == null)
             relList = getLongs(start, db, relList, startNode);
 

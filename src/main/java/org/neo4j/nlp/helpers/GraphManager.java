@@ -22,8 +22,8 @@ import org.neo4j.graphdb.traversal.Evaluators;
 import org.neo4j.helpers.collection.IteratorUtil;
 import org.neo4j.nlp.impl.cache.ClassRelationshipCache;
 import org.neo4j.nlp.impl.cache.PatternRelationshipCache;
-import org.neo4j.nlp.impl.manager.ClassManager;
-import org.neo4j.nlp.impl.manager.DataManager;
+import org.neo4j.nlp.impl.manager.ClassNodeManager;
+import org.neo4j.nlp.impl.manager.DataNodeManager;
 import org.neo4j.nlp.impl.manager.DataRelationshipManager;
 import org.neo4j.nlp.models.PatternCount;
 
@@ -57,8 +57,8 @@ public class GraphManager {
     private final PatternRelationshipCache patternRelationshipCache;
 
     private final DataRelationshipManager dataRelationshipManager;
-    private final DataManager dataManager;
-    private final ClassManager classManager;
+    private final DataNodeManager dataNodeManager;
+    private final ClassNodeManager classNodeManager;
 
     public static final int MIN_THRESHOLD = 5;
     private static final String WILDCARD_TEMPLATE = "\\(\\\\b\\[\\\\w'.-\\]\\+\\\\b\\)";
@@ -70,19 +70,17 @@ public class GraphManager {
         classRelationshipCache = new ClassRelationshipCache();
         patternRelationshipCache = new PatternRelationshipCache();
         dataRelationshipManager = new DataRelationshipManager();
-        dataManager = new DataManager("Data", "value");
-        classManager = new ClassManager("Class", "name");
+        dataNodeManager = new DataNodeManager("Data", "value");
+        classNodeManager = new ClassNodeManager("Class", "name");
     }
 
     public List<String> getNextLayer(Long nodeId, GraphDatabaseService db)
     {
-        List<String> patterns = new ArrayList<>();
-        for(Long id : patternRelationshipCache.getRelationships(nodeId, db, this))
-        {
-            patterns.add(inversePatternCache.getIfPresent(id));
-        }
-
-        return patterns;
+        return patternRelationshipCache
+                .getRelationships(nodeId, db, this)
+                .stream()
+                .map(inversePatternCache::getIfPresent)
+                .collect(Collectors.toList());
     }
 
     public Node getOrCreateNode(String keyValue, GraphDatabaseService db) {
@@ -118,14 +116,12 @@ public class GraphManager {
                     tx.success();
                     tx.close();
                 } finally {
-
                     if (nodeStart != null) {
                         patternCache.put(keyValue, nodeStart.getId());
                         inversePatternCache.put(nodeStart.getId(), keyValue);
                     }
                 }
             }
-
             return nodeStart;
         }
         else
@@ -148,15 +144,14 @@ public class GraphManager {
      */
     public int handlePattern(Node patternNode, String text, GraphDatabaseService db, String[] label) {
         Node dataNode;
-        dataNode = dataManager.getOrCreateNode(text, db);
-        // Get child patterns
+        dataNode = dataNodeManager.getOrCreateNode(text, db);
+
+        // TODO: Write a wrapper function for data management
         Transaction tx = db.beginTx();
         db.getNodeById(dataNode.getId()).setProperty("label", label);
         tx.success();
 
-
-            recognizeMatch(db, patternNode, dataNode, label, 1, true);
-
+        recognizeMatch(db, patternNode, dataNode, label, 1, true);
 
         return (int)dataNode.getId();
     }
@@ -237,12 +232,9 @@ public class GraphManager {
             localMatchCount++;
 
         if(localMatchCount > 0) {
-            // Increment match
-
-
             // Relate to label
             for (String labelName : label) {
-                Node labelNode = classManager.getOrCreateNode(labelName, db);
+                Node labelNode = classNodeManager.getOrCreateNode(labelName, db);
                 classRelationshipCache.getOrCreateRelationship(currentNode.getId(), labelNode.getId(), db, this);
             }
             dataRelationshipManager.getOrCreateNode(currentNode.getId(), dataNode.getId(), db);
@@ -270,8 +262,6 @@ public class GraphManager {
             }
             recognizeMatch(db, currentNode, dataNode, label, depth + 1, false);
         }
-
-
         return localMatchCount > 0;
     }
 
@@ -333,7 +323,7 @@ public class GraphManager {
                             String[] dataLabels = (String[])dn.getProperty("label");
                             for(String labelName : dataLabels)
                             {
-                                Node labelNode = classManager.getOrCreateNode(labelName, db);
+                                Node labelNode = classNodeManager.getOrCreateNode(labelName, db);
                                 classRelationshipCache.getOrCreateRelationship(leafNode.getId(), labelNode.getId(), db, this);
                             }
                             dataRelationshipManager.getOrCreateNode(leafNode.getId(), dn.getId(), db);

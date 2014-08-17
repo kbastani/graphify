@@ -9,6 +9,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RecursiveAction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class PatternMatcher extends RecursiveAction {
     private String input;
@@ -27,7 +28,6 @@ public class PatternMatcher extends RecursiveAction {
         this.graphManager = graphManager;
         this.nodeId = graphManager.getOrCreateNode(regex, db).getId();
         this.childPatterns = graphManager.getNextLayer(nodeId, db);
-        //compute();
     }
 
     @Override
@@ -37,11 +37,11 @@ public class PatternMatcher extends RecursiveAction {
         }
 
         this.matches.add(nodeId);
-        List<PatternMatcher> tasks = new ArrayList<>();
 
-        for(String pattern : childPatterns) {
-            tasks.add(new PatternMatcher(pattern, input, matches, db, graphManager));
-        }
+        List<PatternMatcher> tasks = childPatterns
+                .stream()
+                .map(pattern -> new PatternMatcher(pattern, input, matches, db, graphManager))
+                .collect(Collectors.toList());
 
         invokeAll(tasks);
     }
@@ -56,11 +56,7 @@ public class PatternMatcher extends RecursiveAction {
     public static List<Long> match(String regex, String input, GraphDatabaseService db, GraphManager graphManager) {
         List<Long> matches = new ArrayList<>();
         ForkJoinPool pool = new ForkJoinPool();
-        long startTime = System.currentTimeMillis();
         pool.invoke(new PatternMatcher(regex, input, matches, db, graphManager));
-        long endTime = System.currentTimeMillis();
-        System.out.println("Image blur took " + (endTime - startTime) +
-                " milliseconds.");
         return matches;
     }
 }
