@@ -12,6 +12,4 @@ public abstract class Manager {
      * Get or create a node.
      */
     public abstract Node getOrCreateNode(String keyValue, GraphDatabaseService db);
-
-
 }

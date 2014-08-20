@@ -8,6 +8,8 @@ import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.nlp.helpers.GraphManager;
+import org.neo4j.nlp.impl.manager.DataNodeManager;
+import org.neo4j.nlp.impl.manager.NodeManager;
 import org.neo4j.nlp.models.PatternCount;
 import org.neo4j.test.TestGraphDatabaseFactory;
 
@@ -91,6 +93,10 @@ public class GraphManagerTest {
         GraphDatabaseService db = setUpDb();
         GraphManager graphManager = new GraphManager("Pattern");
         Node rootNode = getRootPatternNode(db, graphManager);
+
+        // Invalidate all caches
+        NodeManager.globalNodeCache.invalidateAll();
+        DataNodeManager.dataCache.invalidateAll();
 
         Map<String, String> text = new HashMap<>();
         text.put("The first word in a sentence end", "sentence");

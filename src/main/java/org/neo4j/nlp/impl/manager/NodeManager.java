@@ -26,10 +26,7 @@ public class NodeManager {
             .maximumSize(20000000)
             .build();
 
-    private GraphDatabaseService graphDb;
-
-    public NodeManager(GraphDatabaseService graphDb) {
-        this.graphDb = graphDb;
+    public NodeManager() {
     }
 
     public static Map<String, Object> getNodeFromGlobalCache(Long id)
@@ -43,7 +40,41 @@ public class NodeManager {
         return manager.getOrCreateNode(key, db);
     }
 
-    public boolean setNodeProperty(Long id, String key, Object value)
+    public Map<String, Object> getNodeAsMap(Long id, GraphDatabaseService graphDb)
+    {
+        boolean success = true;
+
+        // Update the node's property in cache
+        Map<String, Object> node = globalNodeCache.getIfPresent(id);
+
+        if(node == null)
+        {
+            // The node isn't available in the cache, go to the database and retrieve it
+            success = addNodeToCache((gdb, cache) -> getNodeHashMap(id, gdb, cache), graphDb);
+            if(success) node = globalNodeCache.getIfPresent(id);
+        }
+
+        return node;
+    }
+
+    public Object getNodeProperty(Long id, String key, GraphDatabaseService graphDb)
+    {
+        boolean success = true;
+
+        // Update the node's property in cache
+        Map<String, Object> node = globalNodeCache.getIfPresent(id);
+
+        if(node == null)
+        {
+            // The node isn't available in the cache, go to the database and retrieve it
+            success = addNodeToCache((gdb, cache) -> getNodeHashMap(id, gdb, cache), graphDb);
+            if(success) node = globalNodeCache.getIfPresent(id);
+        }
+
+        return node.get(key);
+    }
+
+    public boolean setNodeProperty(Long id, String key, Object value, GraphDatabaseService graphDb)
     {
         boolean success = true;
 
@@ -62,6 +93,12 @@ public class NodeManager {
             node.put(key, value);
         }
 
+        // TODO: Remove this in favor of a distributed messaging bus architecture
+        Transaction tx = graphDb.beginTx();
+        graphDb.getNodeById(id).setProperty(key, value);
+        tx.success();
+        tx.close();
+
         return success;
     }
 
@@ -72,6 +109,7 @@ public class NodeManager {
         IteratorUtil.addToCollection(thisNode.getPropertyKeys(), keys)
                 .stream()
                 .forEach(n -> nodeMap.put(n, thisNode.getProperty(n)));
+        nodeMap.put("id", id);
         cache.put(id, nodeMap);
     }
 

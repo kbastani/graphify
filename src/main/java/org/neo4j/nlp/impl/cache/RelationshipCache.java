@@ -5,6 +5,7 @@ import org.neo4j.graphdb.*;
 import org.neo4j.graphdb.traversal.Evaluators;
 import org.neo4j.helpers.collection.IteratorUtil;
 import org.neo4j.nlp.helpers.GraphManager;
+import org.neo4j.nlp.impl.manager.NodeManager;
 
 import java.util.HashSet;
 import java.util.List;
@@ -27,7 +28,10 @@ public abstract class RelationshipCache {
 
         Cache<Long, List<Long>> relCache = getRelationshipCache();
         relList = relCache.getIfPresent(start);
-        Node startNode = graphManager.getOrCreateNode(GraphManager.inversePatternCache.getIfPresent(start), db);
+
+        NodeManager nodeManager = new NodeManager();
+        String pattern = (String)nodeManager.getNodeAsMap(start,db).get("pattern");
+        Node startNode = graphManager.getOrCreateNode(pattern, db);
 
         if(relList == null)
             relList = getLongs(start, db, relList, startNode);

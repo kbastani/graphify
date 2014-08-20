@@ -20,7 +20,7 @@ public class ConcurrentGraphServiceTest {
         }
 
         try {
-            actual = concurrentGraphService.receiveMessage();
+          actual = concurrentGraphService.receiveMessage();
         } catch (IOException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
