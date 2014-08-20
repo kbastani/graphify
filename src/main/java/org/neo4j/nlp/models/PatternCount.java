@@ -14,10 +14,9 @@
 
 package org.neo4j.nlp.models;
 
-import org.neo4j.graphdb.Node;
-
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This class model represents a word frequency measurement to generate new genetic patterns
@@ -27,9 +26,9 @@ public class PatternCount
 {
     private int count = 0;
     private String pattern = "";
-    private final List<Node> dataNodes = new ArrayList<>();
+    private final List<Map<String, Object>> dataNodes = new ArrayList<>();
 
-    public PatternCount(String pattern, int count, Node dataNode)
+    public PatternCount(String pattern, int count, Map<String, Object> dataNode)
     {
         this.count = count;
         this.pattern = pattern;
@@ -45,7 +44,7 @@ public class PatternCount
         this.pattern = pattern;
     }
 
-    public void addDataNode(Node dataNode)
+    public void addDataNode(Map<String, Object> dataNode)
     {
         dataNodes.add(dataNode);
     }
@@ -58,7 +57,7 @@ public class PatternCount
         return count;
     }
 
-    public List<Node> getDataNodes()
+    public List<Map<String, Object>> getDataNodes()
     {
         return dataNodes;
     }

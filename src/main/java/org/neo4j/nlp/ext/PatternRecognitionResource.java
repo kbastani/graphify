@@ -21,6 +21,8 @@ import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.nlp.helpers.GraphManager;
+import org.neo4j.nlp.impl.manager.NodeManager;
+import org.neo4j.nlp.impl.util.LearningManager;
 import org.neo4j.nlp.impl.util.PatternMatcher;
 import org.neo4j.nlp.models.LabeledText;
 
@@ -88,18 +90,15 @@ public class PatternRecognitionResource {
                 labeledText.setFocus(1);
             }
 
-            // This method trains a model on a supplied label and text content
-            Node patternNode;
-
             // Add first matcher
-            try ( Transaction tx = db.beginTx() ) {
-                patternNode = getRootPatternNode(db);
-                for (int i = 0; i < labeledText.getFocus(); i++) {
-                    for (String text : labeledText.getText())
-                        GRAPH_MANAGER.handlePattern(patternNode, text, db, labeledText.getLabel());
-                }
+            for (int i = 0; i < labeledText.getFocus(); i++) {
+                Transaction tx = db.beginTx();
+                getRootPatternNode(db);
+                LearningManager.trainInput(Arrays.asList(labeledText.getText()), Arrays.asList(labeledText.getLabel()), GRAPH_MANAGER, db);
                 tx.success();
+                tx.close();
             }
+
 
             return Response.ok()
                     .entity("{\"success\":\"true\"}")
@@ -135,9 +134,12 @@ public class PatternRecognitionResource {
             }
 
             // This method trains a model on a supplied label and text content
-            List<Long> patternMatchers = PatternMatcher.match(GraphManager.ROOT_TEMPLATE, text, db, GRAPH_MANAGER);
+
+            Map<Long, Integer> patternMatchers = PatternMatcher.match(GraphManager.ROOT_TEMPLATE, text, db, GRAPH_MANAGER);
+            List<Long> longs = new ArrayList<>();
+            Collections.addAll(longs, patternMatchers.keySet().toArray(new Long[longs.size()]));
             Map<String, Object> params = new HashMap<>();
-            params.put("id", patternMatchers);
+            params.put("id", longs);
             String similarClass = executeCypher(db, getSimilarClassForFeatureVector(), params);
 
             return Response.ok()
@@ -210,11 +212,12 @@ public class PatternRecognitionResource {
      */
     private Node getRootPatternNode(GraphDatabaseService db) {
         Node patternNode;
-        patternNode = GRAPH_MANAGER.getOrCreateNode(GraphManager.ROOT_TEMPLATE, db);
+        patternNode = new NodeManager().getOrCreateNode(GRAPH_MANAGER, GraphManager.ROOT_TEMPLATE, db);
         if(!patternNode.hasProperty("matches")) {
             patternNode.setProperty("matches", 0);
             patternNode.setProperty("threshold", GraphManager.MIN_THRESHOLD);
             patternNode.setProperty("root", 1);
+            patternNode.setProperty("phrase", "{0} {1}");
         }
         return patternNode;
     }

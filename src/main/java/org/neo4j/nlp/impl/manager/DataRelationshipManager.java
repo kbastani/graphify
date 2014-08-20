@@ -40,6 +40,11 @@ public class DataRelationshipManager {
         this.relationshipType = "MATCHES";
     }
 
+    public List<Long> getDataNodesById(Long start)
+    {
+        return relationshipCache.getIfPresent(start);
+    }
+
     public void getOrCreateNode(Long start, Long end, GraphDatabaseService db) {
         List<Long> relList = relationshipCache.getIfPresent(start);
 

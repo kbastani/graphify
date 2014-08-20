@@ -1,5 +1,6 @@
 package org.neo4j.nlp.impl.util;
 
+import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
@@ -8,6 +9,12 @@ import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.nlp.helpers.GraphManager;
+import org.neo4j.nlp.impl.cache.ClassRelationshipCache;
+import org.neo4j.nlp.impl.cache.PatternRelationshipCache;
+import org.neo4j.nlp.impl.manager.ClassNodeManager;
+import org.neo4j.nlp.impl.manager.DataNodeManager;
+import org.neo4j.nlp.impl.manager.DataRelationshipManager;
+import org.neo4j.nlp.impl.manager.NodeManager;
 import org.neo4j.nlp.models.PatternCount;
 import org.neo4j.test.TestGraphDatabaseFactory;
 
@@ -87,7 +94,162 @@ public class GraphManagerTest {
     }
 
     @Test
+    public void testLearningManager() throws Exception {
+        // Invalidate all caches
+        NodeManager.globalNodeCache.invalidateAll();
+        DataNodeManager.dataCache.invalidateAll();
+        ClassNodeManager.classCache.invalidateAll();
+        GraphManager.edgeCache.invalidateAll();
+        GraphManager.inversePatternCache.invalidateAll();
+        GraphManager.patternCache.invalidateAll();;
+        DataRelationshipManager.relationshipCache.invalidateAll();
+        ClassRelationshipCache.relationshipCache.invalidateAll();
+        PatternRelationshipCache.relationshipCache.invalidateAll();
+
+        GraphDatabaseService db = setUpDb();
+        GraphManager graphManager = new GraphManager("Pattern");
+        Node rootNode = getRootPatternNode(db, graphManager);
+
+        Map<String, String> text = new HashMap<>();
+        text.put("The first word in a sentence end", "sentence");
+        text.put("The second word in a sentence end", "sentence");
+        text.put("The third word in a sentence end", "sentence");
+        text.put("The fourth word in a paragraph end", "paragraph");
+        text.put("The fifth word in a sentence end", "sentence");
+        text.put("The sixth word in a paragraph end", "paragraph");
+        text.put("The seventh word in a sentence end", "sentence");
+        text.put("The eighth word in a document end", "document");
+        text.put("The ninth word in a sentence end", "sentence");
+        text.put("The tenth word in a paragraph end", "paragraph");
+        text.put("The eleventh word in a sentence end", "sentence");
+        text.put("The twelfth word in a paragraph end", "paragraph");
+        text.put("The thirteenth word in a sentence end", "sentence");
+        text.put("The fourteenth word in a document end", "document");
+        text.put("The fifteenth word in a sentence end", "sentence");
+        text.put("The sixteenth word in a paragraph end", "paragraph");
+        text.put("The seventeenth word in a sentence end", "sentence");
+        text.put("The nineteenth word in a document end", "document");
+        text.put("The twentieth word in a sentence end", "sentence");
+        text.put("The twenty-first word in a paragraph end", "paragraph");
+        text.put("The twenty-second word in a sentence end", "sentence");
+        text.put("The twenty-third word in a document end", "document");
+        text.put("The twenty-fourth word in a document end", "document");
+        text.put("The twenty-fifth word in a document end", "document");
+        text.put("The twenty-sixth word in a document end", "document");
+        text.put("The first word in a sentence end", "sentence");
+        text.put("The second word in a sentence end", "sentence");
+        text.put("The third word in a sentence end", "sentence");
+        text.put("The fourth word in a paragraph end", "paragraph");
+        text.put("The fifth word in a sentence end", "sentence");
+        text.put("The sixth word in a paragraph end", "paragraph");
+        text.put("The seventh word in a sentence end", "sentence");
+        text.put("The eighth word in a document end", "document");
+        text.put("The ninth word in a sentence end", "sentence");
+        text.put("The tenth word in a paragraph end", "paragraph");
+        text.put("The eleventh word in a sentence end", "sentence");
+        text.put("The twelfth word in a paragraph end", "paragraph");
+        text.put("The thirteenth word in a sentence end", "sentence");
+        text.put("The fourteenth word in a document end", "document");
+        text.put("The fifteenth word in a sentence end", "sentence");
+        text.put("The sixteenth word in a paragraph end", "paragraph");
+        text.put("The seventeenth word in a sentence end", "sentence");
+        text.put("The nineteenth word in a document end", "document");
+        text.put("The twentieth word in a sentence end", "sentence");
+        text.put("The twenty-first word in a paragraph end", "paragraph");
+        text.put("The twenty-second word in a sentence end", "sentence");
+        text.put("The twenty-third word in a document end", "document");
+        text.put("The twenty-fourth word in a document end", "document");
+        text.put("The twenty-fifth word in a document end", "document");
+        text.put("The twenty-sixth word in a document end", "document");
+        text.put("The first word in a sentence end", "sentence");
+        text.put("The second word in a sentence end", "sentence");
+        text.put("The third word in a sentence end", "sentence");
+        text.put("The fourth word in a paragraph end", "paragraph");
+        text.put("The fifth word in a sentence end", "sentence");
+        text.put("The sixth word in a paragraph end", "paragraph");
+        text.put("The seventh word in a sentence end", "sentence");
+        text.put("The eighth word in a document end", "document");
+        text.put("The ninth word in a sentence end", "sentence");
+        text.put("The tenth word in a paragraph end", "paragraph");
+        text.put("The eleventh word in a sentence end", "sentence");
+        text.put("The twelfth word in a paragraph end", "paragraph");
+        text.put("The thirteenth word in a sentence end", "sentence");
+        text.put("The fourteenth word in a document end", "document");
+        text.put("The fifteenth word in a sentence end", "sentence");
+        text.put("The sixteenth word in a paragraph end", "paragraph");
+        text.put("The seventeenth word in a sentence end", "sentence");
+        text.put("The nineteenth word in a document end", "document");
+        text.put("The twentieth word in a sentence end", "sentence");
+        text.put("The twenty-first word in a paragraph end", "paragraph");
+        text.put("The twenty-second word in a sentence end", "sentence");
+        text.put("The twenty-third word in a document end", "document");
+        text.put("The twenty-fourth word in a document end", "document");
+        text.put("The twenty-fifth word in a document end", "document");
+        text.put("The twenty-sixth word in a document end", "document");
+        text.put("The first word in a sentence end", "sentence");
+        text.put("The second word in a sentence end", "sentence");
+        text.put("The third word in a sentence end", "sentence");
+        text.put("The fourth word in a paragraph end", "paragraph");
+        text.put("The fifth word in a sentence end", "sentence");
+        text.put("The sixth word in a paragraph end", "paragraph");
+        text.put("The seventh word in a sentence end", "sentence");
+        text.put("The eighth word in a document end", "document");
+        text.put("The ninth word in a sentence end", "sentence");
+        text.put("The tenth word in a paragraph end", "paragraph");
+        text.put("The eleventh word in a sentence end", "sentence");
+        text.put("The twelfth word in a paragraph end", "paragraph");
+        text.put("The thirteenth word in a sentence end", "sentence");
+        text.put("The fourteenth word in a document end", "document");
+        text.put("The fifteenth word in a sentence end", "sentence");
+        text.put("The sixteenth word in a paragraph end", "paragraph");
+        text.put("The seventeenth word in a sentence end", "sentence");
+        text.put("The nineteenth word in a document end", "document");
+        text.put("The twentieth word in a sentence end", "sentence");
+        text.put("The twenty-first word in a paragraph end", "paragraph");
+        text.put("The twenty-second word in a sentence end", "sentence");
+        text.put("The twenty-third word in a document end", "document");
+        text.put("The twenty-fourth word in a document end", "document");
+        text.put("The twenty-fifth word in a document end", "document");
+        text.put("The twenty-sixth word in a document end", "document");
+
+        for (String str : text.keySet())
+        {
+            LearningManager.trainInput(Lists.asList(str, new String[0]), Lists.asList(text.get(str), new String[0]), graphManager, db);
+        }
+
+        String rootPattern;
+
+        Transaction tx = db.beginTx();
+        try {
+            rootPattern = (String)rootNode.getProperty("pattern");
+            tx.success();
+        }
+        finally {
+            tx.close();
+        }
+
+        String input = "The fiftieth word in a document end";
+        classifyInput(db, graphManager, rootPattern, input);
+        input = "The fiftieth word in a sentence end";
+        classifyInput(db, graphManager, rootPattern, input);
+        input = "The fiftieth word in a paragraph end";
+        classifyInput(db, graphManager, rootPattern, input);
+    }
+
+    @Test
     public void testBackwardsPropagation() throws Exception {
+
+        // Invalidate all caches
+        NodeManager.globalNodeCache.invalidateAll();
+        DataNodeManager.dataCache.invalidateAll();
+        ClassNodeManager.classCache.invalidateAll();
+        GraphManager.edgeCache.invalidateAll();
+        GraphManager.inversePatternCache.invalidateAll();
+        GraphManager.patternCache.invalidateAll();;
+        DataRelationshipManager.relationshipCache.invalidateAll();
+        ClassRelationshipCache.relationshipCache.invalidateAll();
+        PatternRelationshipCache.relationshipCache.invalidateAll();
+
         GraphDatabaseService db = setUpDb();
         GraphManager graphManager = new GraphManager("Pattern");
         Node rootNode = getRootPatternNode(db, graphManager);
@@ -167,9 +329,11 @@ public class GraphManagerTest {
 
     private void classifyInput(GraphDatabaseService db, GraphManager graphManager, String rootPattern, String input) {
         Map<String, Object> params;
-        List<Long> patternMatchers = PatternMatcher.match(rootPattern, input, db, graphManager);
+        Map<Long, Integer> patternMatchers = PatternMatcher.match(rootPattern, input, db, graphManager);
+        List<Long> longs = new ArrayList<>();
+        Collections.addAll(longs, patternMatchers.keySet().toArray(new Long[longs.size()]));
         params = new HashMap<>();
-        params.put("id", patternMatchers);
+        params.put("id", longs);
         System.out.println(executeCypher(db, getSimilarClassForFeatureVector(), params));
     }
 
