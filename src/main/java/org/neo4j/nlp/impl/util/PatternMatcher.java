@@ -3,8 +3,9 @@ package org.neo4j.nlp.impl.util;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.nlp.helpers.GraphManager;
 
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RecursiveAction;
 import java.util.regex.Matcher;
@@ -16,11 +17,11 @@ public class PatternMatcher extends RecursiveAction {
     private String regex;
     private GraphDatabaseService db;
     private GraphManager graphManager;
-    private List<Long> matches;
+    private Map<Long, Integer> matches;
     private List<String> childPatterns;
     private Long nodeId;
 
-    private PatternMatcher(String regex, String input, List<Long> matches, GraphDatabaseService db, GraphManager graphManager) {
+    private PatternMatcher(String regex, String input, Map<Long, Integer> matches, GraphDatabaseService db, GraphManager graphManager) {
         this.regex = regex;
         this.input = input;
         this.matches = matches;
@@ -32,11 +33,13 @@ public class PatternMatcher extends RecursiveAction {
 
     @Override
     protected void compute() {
-        if (!getPatternMatchers()) {
+        int matchCount = getPatternMatchers();
+
+        if (matchCount == 0) {
             return;
         }
 
-        this.matches.add(nodeId);
+        this.matches.put(nodeId, matchCount);
 
         List<PatternMatcher> tasks = childPatterns
                 .stream()
@@ -46,17 +49,24 @@ public class PatternMatcher extends RecursiveAction {
         invokeAll(tasks);
     }
 
-    boolean getPatternMatchers() {
+    Integer getPatternMatchers() {
         // Match on input
         Pattern p = Pattern.compile("(?i)" + this.regex);
         Matcher m = p.matcher(this.input);
-        return m.find();
+        Integer matchCount = 0;
+        while(m.find())
+            matchCount++;
+        return matchCount;
     }
 
-    public static List<Long> match(String regex, String input, GraphDatabaseService db, GraphManager graphManager) {
-        List<Long> matches = new ArrayList<>();
+    public static Map<Long, Integer> match(String regex, String input, GraphDatabaseService db, GraphManager graphManager) {
+        Map<Long, Integer> matches = new HashMap<>();
         ForkJoinPool pool = new ForkJoinPool();
         pool.invoke(new PatternMatcher(regex, input, matches, db, graphManager));
+
+        // Cleaning up after yourself is important
+        pool.shutdownNow();
+
         return matches;
     }
 }
