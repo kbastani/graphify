@@ -31,6 +31,8 @@ public class LearningManager {
 
     public static void trainInput(List<String> inputs, List<String> labels, GraphManager graphManager, GraphDatabaseService db)
     {
+        VectorUtil.vectorSpaceModelCache.invalidateAll();
+
         // Get label node identifiers
         List<Long> labelNodeIds = new ArrayList<>();
 
@@ -49,16 +51,23 @@ public class LearningManager {
             Long dataNodeId = nodeManager.getOrCreateNode(dataNodeManager, input, db).getId();
             nodeManager.setNodeProperty(dataNodeId, "label", labels.toArray(new String[labels.size()]), db);
 
-            Map<Long, Integer> patternMatchers;
-            patternMatchers = PatternMatcher.match(GraphManager.ROOT_TEMPLATE, input, db, graphManager);
+            Map<Long, Integer> patternMatchers = PatternMatcher.match(GraphManager.ROOT_TEMPLATE, input, db, graphManager);
 
-            // Update the match counts on each of the nodes
-            NodeManager nodeManager = new NodeManager();
+            tx.success();
+            tx.close();
 
             for (Long nodeId : patternMatchers.keySet())
             {
+                tx = db.beginTx();
                 // Get property
                 Integer matchCount = (Integer)nodeManager.getNodeProperty(nodeId, "matches", db);
+
+                if(matchCount == null)
+                {
+                    matchCount = 0;
+                    nodeManager.setNodeProperty(nodeId, "matches", matchCount, db);
+                }
+
 
                 // Set property
                 nodeManager.setNodeProperty(nodeId, "matches", matchCount + patternMatchers.get(nodeId), db);
@@ -90,10 +99,13 @@ public class LearningManager {
                     // Generate nodes for every wildcard
                     generateChildPatterns(db, nodeManager.getNodeAsMap(nodeId, db), matchDictionary, graphManager);
                 }
+
+                tx.success();
+                tx.close();
             }
 
-            tx.success();
-            tx.close();
+
+
         }
     }
 
