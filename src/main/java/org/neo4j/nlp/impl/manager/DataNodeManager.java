@@ -23,7 +23,7 @@ import org.neo4j.nlp.abstractions.Manager;
 import java.util.Map;
 
 /**
- * This data manages a cache wrapper for a set of label dataes used to label unrecognized data in the
+ * This data manages a cache wrapper for a set of label data used to label unrecognized data in the
  * pattern recognition hierarchy.
  */
 public class DataNodeManager extends Manager {

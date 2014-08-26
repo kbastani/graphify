@@ -2,6 +2,7 @@ package org.neo4j.nlp.impl.util;
 
 import com.google.common.collect.Lists;
 import com.google.gson.Gson;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.junit.Test;
@@ -18,7 +19,9 @@ import org.neo4j.nlp.impl.manager.NodeManager;
 import org.neo4j.nlp.models.PatternCount;
 import org.neo4j.test.TestGraphDatabaseFactory;
 
+import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class GraphManagerTest {
 
@@ -111,106 +114,118 @@ public class GraphManagerTest {
         Node rootNode = getRootPatternNode(db, graphManager);
 
         Map<String, String> text = new HashMap<>();
-        text.put("The first word in a sentence end", "sentence");
-        text.put("The second word in a sentence end", "sentence");
-        text.put("The third word in a sentence end", "sentence");
-        text.put("The fourth word in a paragraph end", "paragraph");
-        text.put("The fifth word in a sentence end", "sentence");
-        text.put("The sixth word in a paragraph end", "paragraph");
-        text.put("The seventh word in a sentence end", "sentence");
-        text.put("The eighth word in a document end", "document");
-        text.put("The ninth word in a sentence end", "sentence");
-        text.put("The tenth word in a paragraph end", "paragraph");
-        text.put("The eleventh word in a sentence end", "sentence");
-        text.put("The twelfth word in a paragraph end", "paragraph");
-        text.put("The thirteenth word in a sentence end", "sentence");
-        text.put("The fourteenth word in a document end", "document");
-        text.put("The fifteenth word in a sentence end", "sentence");
-        text.put("The sixteenth word in a paragraph end", "paragraph");
-        text.put("The seventeenth word in a sentence end", "sentence");
-        text.put("The nineteenth word in a document end", "document");
-        text.put("The twentieth word in a sentence end", "sentence");
-        text.put("The twenty-first word in a paragraph end", "paragraph");
-        text.put("The twenty-second word in a sentence end", "sentence");
-        text.put("The twenty-third word in a document end", "document");
-        text.put("The twenty-fourth word in a document end", "document");
-        text.put("The twenty-fifth word in a document end", "document");
-        text.put("The twenty-sixth word in a document end", "document");
-        text.put("The first word in a sentence end", "sentence");
-        text.put("The second word in a sentence end", "sentence");
-        text.put("The third word in a sentence end", "sentence");
-        text.put("The fourth word in a paragraph end", "paragraph");
-        text.put("The fifth word in a sentence end", "sentence");
-        text.put("The sixth word in a paragraph end", "paragraph");
-        text.put("The seventh word in a sentence end", "sentence");
-        text.put("The eighth word in a document end", "document");
-        text.put("The ninth word in a sentence end", "sentence");
-        text.put("The tenth word in a paragraph end", "paragraph");
-        text.put("The eleventh word in a sentence end", "sentence");
-        text.put("The twelfth word in a paragraph end", "paragraph");
-        text.put("The thirteenth word in a sentence end", "sentence");
-        text.put("The fourteenth word in a document end", "document");
-        text.put("The fifteenth word in a sentence end", "sentence");
-        text.put("The sixteenth word in a paragraph end", "paragraph");
-        text.put("The seventeenth word in a sentence end", "sentence");
-        text.put("The nineteenth word in a document end", "document");
-        text.put("The twentieth word in a sentence end", "sentence");
-        text.put("The twenty-first word in a paragraph end", "paragraph");
-        text.put("The twenty-second word in a sentence end", "sentence");
-        text.put("The twenty-third word in a document end", "document");
-        text.put("The twenty-fourth word in a document end", "document");
-        text.put("The twenty-fifth word in a document end", "document");
-        text.put("The twenty-sixth word in a document end", "document");
-        text.put("The first word in a sentence end", "sentence");
-        text.put("The second word in a sentence end", "sentence");
-        text.put("The third word in a sentence end", "sentence");
-        text.put("The fourth word in a paragraph end", "paragraph");
-        text.put("The fifth word in a sentence end", "sentence");
-        text.put("The sixth word in a paragraph end", "paragraph");
-        text.put("The seventh word in a sentence end", "sentence");
-        text.put("The eighth word in a document end", "document");
-        text.put("The ninth word in a sentence end", "sentence");
-        text.put("The tenth word in a paragraph end", "paragraph");
-        text.put("The eleventh word in a sentence end", "sentence");
-        text.put("The twelfth word in a paragraph end", "paragraph");
-        text.put("The thirteenth word in a sentence end", "sentence");
-        text.put("The fourteenth word in a document end", "document");
-        text.put("The fifteenth word in a sentence end", "sentence");
-        text.put("The sixteenth word in a paragraph end", "paragraph");
-        text.put("The seventeenth word in a sentence end", "sentence");
-        text.put("The nineteenth word in a document end", "document");
-        text.put("The twentieth word in a sentence end", "sentence");
-        text.put("The twenty-first word in a paragraph end", "paragraph");
-        text.put("The twenty-second word in a sentence end", "sentence");
-        text.put("The twenty-third word in a document end", "document");
-        text.put("The twenty-fourth word in a document end", "document");
-        text.put("The twenty-fifth word in a document end", "document");
-        text.put("The twenty-sixth word in a document end", "document");
-        text.put("The first word in a sentence end", "sentence");
-        text.put("The second word in a sentence end", "sentence");
-        text.put("The third word in a sentence end", "sentence");
-        text.put("The fourth word in a paragraph end", "paragraph");
-        text.put("The fifth word in a sentence end", "sentence");
-        text.put("The sixth word in a paragraph end", "paragraph");
-        text.put("The seventh word in a sentence end", "sentence");
-        text.put("The eighth word in a document end", "document");
-        text.put("The ninth word in a sentence end", "sentence");
-        text.put("The tenth word in a paragraph end", "paragraph");
-        text.put("The eleventh word in a sentence end", "sentence");
-        text.put("The twelfth word in a paragraph end", "paragraph");
-        text.put("The thirteenth word in a sentence end", "sentence");
-        text.put("The fourteenth word in a document end", "document");
-        text.put("The fifteenth word in a sentence end", "sentence");
-        text.put("The sixteenth word in a paragraph end", "paragraph");
-        text.put("The seventeenth word in a sentence end", "sentence");
-        text.put("The nineteenth word in a document end", "document");
-        text.put("The twentieth word in a sentence end", "sentence");
-        text.put("The twenty-first word in a paragraph end", "paragraph");
-        text.put("The twenty-second word in a sentence end", "sentence");
-        text.put("The twenty-third word in a document end", "document");
-        text.put("The twenty-fourth word in a document end", "document");
-        text.put("The twenty-fifth word in a document end", "document");
-        text.put("The twenty-sixth word in a document end", "document");
+        text.put("The first word in a sentence is interesting", "sentence");
+        text.put("The second word in a sentence is interesting", "sentence");
+        text.put("The third word in a sentence is interesting", "sentence");
+        text.put("The fourth word in a paragraph is interesting", "paragraph");
+        text.put("The fifth word in a sentence is interesting", "sentence");
+        text.put("The sixth word in a paragraph is interesting", "paragraph");
+        text.put("The seventh word in a sentence is interesting", "sentence");
+        text.put("The eighth word in a document is interesting", "document");
+        text.put("The ninth word in a sentence is interesting", "sentence");
+        text.put("The tenth word in a paragraph is interesting", "paragraph");
+        text.put("The eleventh word in a sentence is interesting", "sentence");
+        text.put("The twelfth word in a paragraph is interesting", "paragraph");
+        text.put("The thirteenth word in a sentence is interesting", "sentence");
+        text.put("The fourteenth word in a document is interesting", "document");
+        text.put("The fifteenth word in a sentence is interesting", "sentence");
+        text.put("The sixteenth word in a paragraph is interesting", "paragraph");
+        text.put("The seventeenth word in a sentence is interesting", "sentence");
+        text.put("The nineteenth word in a document is interesting", "document");
+        text.put("The twentieth word in a sentence is interesting", "sentence");
+        text.put("The twenty-first word in a paragraph is interesting", "paragraph");
+        text.put("The twenty-second word in a sentence is interesting", "sentence");
+        text.put("The twenty-third word in a document is interesting", "document");
+        text.put("The twenty-fourth word in a document is interesting", "document");
+        text.put("The twenty-fifth word in a document is interesting", "document");
+        text.put("The twenty-sixth word in a document is interesting", "document");
+        text.put("The first word in a sentence is interesting", "sentence");
+        text.put("The second word in a sentence is interesting", "sentence");
+        text.put("The third word in a sentence is interesting", "sentence");
+        text.put("The fourth word in a paragraph is interesting", "paragraph");
+        text.put("The fifth word in a sentence is interesting", "sentence");
+        text.put("The sixth word in a paragraph is interesting", "paragraph");
+        text.put("The seventh word in a sentence is interesting", "sentence");
+        text.put("The eighth word in a document is interesting", "document");
+        text.put("The ninth word in a sentence is interesting", "sentence");
+        text.put("The tenth word in a paragraph is interesting", "paragraph");
+        text.put("The eleventh word in a sentence is interesting", "sentence");
+        text.put("The twelfth word in a paragraph is interesting", "paragraph");
+        text.put("The thirteenth word in a sentence is interesting", "sentence");
+        text.put("The fourteenth word in a document is interesting", "document");
+        text.put("The fifteenth word in a sentence is interesting", "sentence");
+        text.put("The sixteenth word in a paragraph is interesting", "paragraph");
+        text.put("The seventeenth word in a sentence is interesting", "sentence");
+        text.put("The nineteenth word in a document is interesting", "document");
+        text.put("The twentieth word in a sentence is interesting", "sentence");
+        text.put("The twenty-first word in a paragraph is interesting", "paragraph");
+        text.put("The twenty-second word in a sentence is interesting", "sentence");
+        text.put("The twenty-third word in a document is interesting", "document");
+        text.put("The twenty-fourth word in a document is interesting", "document");
+        text.put("The twenty-fifth word in a document is interesting", "document");
+        text.put("The twenty-sixth word in a document is interesting", "document");
+        text.put("The first word in a sentence is interesting", "sentence");
+        text.put("The second word in a sentence is interesting", "sentence");
+        text.put("The third word in a sentence is interesting", "sentence");
+        text.put("The fourth word in a paragraph is interesting", "paragraph");
+        text.put("The fifth word in a sentence is interesting", "sentence");
+        text.put("The sixth word in a paragraph is interesting", "paragraph");
+        text.put("The seventh word in a sentence is interesting", "sentence");
+        text.put("The eighth word in a document is interesting", "document");
+        text.put("The ninth word in a sentence is interesting", "sentence");
+        text.put("The tenth word in a paragraph is interesting", "paragraph");
+        text.put("The eleventh word in a sentence is interesting", "sentence");
+        text.put("The twelfth word in a paragraph is interesting", "paragraph");
+        text.put("The thirteenth word in a sentence is interesting", "sentence");
+        text.put("The fourteenth word in a document is interesting", "document");
+        text.put("The fifteenth word in a sentence is interesting", "sentence");
+        text.put("The sixteenth word in a paragraph is interesting", "paragraph");
+        text.put("The seventeenth word in a sentence is interesting", "sentence");
+        text.put("The nineteenth word in a document is interesting", "document");
+        text.put("The twentieth word in a sentence is interesting", "sentence");
+        text.put("The twenty-first word in a paragraph is interesting", "paragraph");
+        text.put("The twenty-second word in a sentence is interesting", "sentence");
+        text.put("The twenty-third word in a document is interesting", "document");
+        text.put("The twenty-fourth word in a document is interesting", "document");
+        text.put("The twenty-fifth word in a document is interesting", "document");
+        text.put("The twenty-sixth word in a document is interesting", "document");
+        text.put("The first word in a sentence is interesting", "sentence");
+        text.put("The second word in a sentence is interesting", "sentence");
+        text.put("The third word in a sentence is interesting", "sentence");
+        text.put("The fourth word in a paragraph is interesting", "paragraph");
+        text.put("The fifth word in a sentence is interesting", "sentence");
+        text.put("The sixth word in a paragraph is interesting", "paragraph");
+        text.put("The seventh word in a sentence is interesting", "sentence");
+        text.put("The eighth word in a document is interesting", "document");
+        text.put("The ninth word in a sentence is interesting", "sentence");
+        text.put("The tenth word in a paragraph is interesting", "paragraph");
+        text.put("The eleventh word in a sentence is interesting", "sentence");
+        text.put("The twelfth word in a paragraph is interesting", "paragraph");
+        text.put("The thirteenth word in a sentence is interesting", "sentence");
+        text.put("The fourteenth word in a document is interesting", "document");
+        text.put("The fifteenth word in a sentence is interesting", "sentence");
+        text.put("The sixteenth word in a paragraph is interesting", "paragraph");
+        text.put("The seventeenth word in a sentence is interesting", "sentence");
+        text.put("The nineteenth word in a document is interesting", "document");
+        text.put("The twentieth word in a sentence is interesting", "sentence");
+        text.put("The twenty-first word in a paragraph is interesting", "paragraph");
+        text.put("The twenty-second word in a sentence is interesting", "sentence");
+        text.put("The twenty-third word in a document is interesting", "document");
+        text.put("The twenty-fourth word in a document is interesting", "document");
+        text.put("The twenty-fifth word in a document is interesting", "document");
+        text.put("The twenty-sixth word in a document is interesting", "document");
+        text.put("The twenty-third note in a ensemble is musical", "ensemble");
+        text.put("The twenty-fourth note in a ensemble is musical", "ensemble");
+        text.put("The twenty-fifth note in a ensemble is musical", "ensemble");
+        text.put("The twenty-sixth note in a ensemble is musical", "ensemble");
+        text.put("The first note in a ensemble is musical", "ensemble");
+        text.put("The second note in a ensemble is musical", "ensemble");
+        text.put("The third note in a ensemble is musical", "ensemble");
+        text.put("The fourth note in a ensemble is musical", "ensemble");
+        text.put("The fifth note in a ensemble is musical", "ensemble");
+        text.put("The sixth note in a ensemble is musical", "ensemble");
+        text.put("The seventh note in a ensemble is musical", "ensemble");
+        text.put("The ninth note in a ensemble is musical", "ensemble");
 
         for (String str : text.keySet())
         {
@@ -228,12 +243,56 @@ public class GraphManagerTest {
             tx.close();
         }
 
-        String input = "The fiftieth word in a document end";
+        String input = "The fiftieth word in a document is interesting";
         classifyInput(db, graphManager, rootPattern, input);
-        input = "The fiftieth word in a sentence end";
+        input = "The fiftieth word in a sentence is interesting";
         classifyInput(db, graphManager, rootPattern, input);
-        input = "The fiftieth word in a paragraph end";
+        input = "The fiftieth word in a paragraph is interesting";
         classifyInput(db, graphManager, rootPattern, input);
+
+        // Output a feature vector on a new input from this point in the model development.
+        // Feature vectors are a single dimension of values, 0 for non-match or non-zero for match.
+        // When the value of an index in the vector is 1, the feature at that index was recognized in an input.
+
+        input = "The last word in a sentence is interesting";
+        System.out.println(getFeatureVector(db, graphManager, rootPattern, input));
+
+        String input1 = "The last word in a sentence is interesting";
+        List<Integer> v1 = getFeatureVector(db, graphManager, rootPattern, input1);
+        String input2 = "The tenth word in a paragraph is interesting";
+        List<Integer> v2 = getFeatureVector(db, graphManager, rootPattern, input2);
+
+        double cosineSimilarity = VectorUtil.cosineSimilarity(v1, v2);
+
+        System.out.println(cosineSimilarity);
+
+        String input3 = "The tenth word in a paragraph is interesting";
+        List<Integer> v3 = getFeatureVector(db, graphManager, rootPattern, input3);
+
+        System.out.println(VectorUtil.cosineSimilarity(v1, v3));
+
+        String input4 = "The fifth word in a document is interesting";
+        List<Integer> v4 = getFeatureVector(db, graphManager, rootPattern, input4);
+
+        System.out.println(VectorUtil.cosineSimilarity(v1, v4));
+
+        String input5 = "The sixth letter in a stanza is interesting";
+        List<Integer> v5 = getFeatureVector(db, graphManager, rootPattern, input5);
+
+        //System.out.println(VectorUtil.cosineSimilarity(v1, v5));
+
+        //System.out.println(VectorUtil.similarDocumentMap(db));
+
+        //System.out.println(VectorUtil.updateSimilarityRelationships(db));
+
+        VectorUtil.vectorSpaceModelCache.invalidateAll();
+
+        //System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForClass(db, "document")));
+
+        System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, graphManager, input5)));
+
+//        Map<String, Object> params = new HashMap<>();
+//        System.out.println(CypherUtil.executeCypher(db, "MATCH (class:Class)-[r:RELATED_TO]->(classes:Class) RETURN class.name as class, classes.name as relatedTo, r.similarity as similarity ORDER BY similarity DESC", params));
     }
 
     @Test
@@ -255,31 +314,31 @@ public class GraphManagerTest {
         Node rootNode = getRootPatternNode(db, graphManager);
 
         Map<String, String> text = new HashMap<>();
-        text.put("The first word in a sentence end", "sentence");
-        text.put("The second word in a sentence end", "sentence");
-        text.put("The third word in a sentence end", "sentence");
-        text.put("The fourth word in a paragraph end", "paragraph");
-        text.put("The fifth word in a sentence end", "sentence");
-        text.put("The sixth word in a paragraph end", "paragraph");
-        text.put("The seventh word in a sentence end", "sentence");
-        text.put("The eighth word in a document end", "document");
-        text.put("The ninth word in a sentence end", "sentence");
-        text.put("The tenth word in a paragraph end", "paragraph");
-        text.put("The eleventh word in a sentence end", "sentence");
-        text.put("The twelfth word in a paragraph end", "paragraph");
-        text.put("The thirteenth word in a sentence end", "sentence");
-        text.put("The fourteenth word in a document end", "document");
-        text.put("The fifteenth word in a sentence end", "sentence");
-        text.put("The sixteenth word in a paragraph end", "paragraph");
-        text.put("The seventeenth word in a sentence end", "sentence");
-        text.put("The nineteenth word in a document end", "document");
-        text.put("The twentieth word in a sentence end", "sentence");
-        text.put("The twenty-first word in a paragraph end", "paragraph");
-        text.put("The twenty-second word in a sentence end", "sentence");
-        text.put("The twenty-third word in a document end", "document");
-        text.put("The twenty-fourth word in a document end", "document");
-        text.put("The twenty-fifth word in a document end", "document");
-        text.put("The twenty-sixth word in a document end", "document");
+        text.put("The first word in a sentence is interesting", "sentence");
+        text.put("The second word in a sentence is interesting", "sentence");
+        text.put("The third word in a sentence is interesting", "sentence");
+        text.put("The fourth word in a paragraph is interesting", "paragraph");
+        text.put("The fifth word in a sentence is interesting", "sentence");
+        text.put("The sixth word in a paragraph is interesting", "paragraph");
+        text.put("The seventh word in a sentence is interesting", "sentence");
+        text.put("The eighth word in a document is interesting", "document");
+        text.put("The ninth word in a sentence is interesting", "sentence");
+        text.put("The tenth word in a paragraph is interesting", "paragraph");
+        text.put("The eleventh word in a sentence is interesting", "sentence");
+        text.put("The twelfth word in a paragraph is interesting", "paragraph");
+        text.put("The thirteenth word in a sentence is interesting", "sentence");
+        text.put("The fourteenth word in a document is interesting", "document");
+        text.put("The fifteenth word in a sentence is interesting", "sentence");
+        text.put("The sixteenth word in a paragraph is interesting", "paragraph");
+        text.put("The seventeenth word in a sentence is interesting", "sentence");
+        text.put("The nineteenth word in a document is interesting", "document");
+        text.put("The twentieth word in a sentence is interesting", "sentence");
+        text.put("The twenty-first word in a paragraph is interesting", "paragraph");
+        text.put("The twenty-second word in a sentence is interesting", "sentence");
+        text.put("The twenty-third word in a document is interesting", "document");
+        text.put("The twenty-fourth word in a document is interesting", "document");
+        text.put("The twenty-fifth word in a document is interesting", "document");
+        text.put("The twenty-sixth word in a document is interesting", "document");
 
         for (String str : text.keySet())
         {
@@ -287,9 +346,9 @@ public class GraphManagerTest {
         }
 
         // Test new sentences
-        int document = graphManager.handlePattern(rootNode, "The fiftieth word in a document end", db, new String[] { "CLASSIFY" });
-        int sentence = graphManager.handlePattern(rootNode, "The last word in a sentence end", db, new String[] { "CLASSIFY" });
-        int paragraph = graphManager.handlePattern(rootNode, "The longest word in a paragraph end", db, new String[] { "CLASSIFY" });
+        int document = graphManager.handlePattern(rootNode, "The fiftieth word in a document is interesting", db, new String[] { "CLASSIFY" });
+        int sentence = graphManager.handlePattern(rootNode, "The last word in a sentence is interesting", db, new String[] { "CLASSIFY" });
+        int paragraph = graphManager.handlePattern(rootNode, "The longest word in a paragraph is interesting", db, new String[] { "CLASSIFY" });
 
         Map<String, Object> params = new HashMap<>();
 
@@ -319,12 +378,43 @@ public class GraphManagerTest {
             tx.close();
         }
 
-        String input = "The fiftieth word in a document end";
+        String input = "The last word in a document is interesting";
         classifyInput(db, graphManager, rootPattern, input);
-        input = "The fiftieth word in a sentence end";
+        input = "The nineteenth word in a sentence is interesting";
         classifyInput(db, graphManager, rootPattern, input);
-        input = "The fiftieth word in a paragraph end";
+        input = "The fiftieth word in a paragraph is interesting";
         classifyInput(db, graphManager, rootPattern, input);
+
+
+    }
+
+    private List<Integer> getFeatureVector(GraphDatabaseService db, GraphManager graphManager, String rootPattern, String input) {
+        Map<String, Object> params = new HashMap<>();
+        Map<Long, Integer> patternMatchers = PatternMatcher.match(rootPattern, input, db, graphManager);
+        String featureIndex = executeCypher(db, getFeatureIndex(), params);
+        ObjectMapper objectMapper = new ObjectMapper();
+        List<Integer> featureIndexList = new ArrayList<>();
+
+        //System.out.println(executeCypher(db, getFeatureIndexDebug(), params));
+
+
+        try {
+            ArrayList<LinkedHashMap<?, ?>> results;
+            results = objectMapper.readValue(featureIndex, ArrayList.class);
+            featureIndexList = results.stream()
+                    .map(a -> (Integer)a.get("index"))
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        List<Integer> longs = new ArrayList<>();
+        Collections.addAll(longs, patternMatchers.keySet().stream().map(n -> n.intValue()).collect(Collectors.toList()).toArray(new Integer[longs.size()]));
+
+        //System.out.println(longs);
+        //System.out.println(featureIndexList);
+
+        return featureIndexList.stream().map(i -> longs.contains(i) ? 1 : 0).collect(Collectors.toList());
     }
 
     private void classifyInput(GraphDatabaseService db, GraphManager graphManager, String rootPattern, String input) {
@@ -335,6 +425,16 @@ public class GraphManagerTest {
         params = new HashMap<>();
         params.put("id", longs);
         System.out.println(executeCypher(db, getSimilarClassForFeatureVector(), params));
+    }
+
+    private static String getFeatureIndex() {
+        return
+                "MATCH (pattern:Pattern) RETURN id(pattern) as index ORDER BY pattern.threshold DESC";
+    }
+
+    private static String getFeatureIndexDebug() {
+        return
+                "MATCH (pattern:Pattern) WITH pattern, { index: id(pattern), feature: pattern.phrase } as feature ORDER BY pattern.threshold DESC RETURN collect(feature) as features";
     }
 
     private static String getSimilarClassForFeatureVector() {

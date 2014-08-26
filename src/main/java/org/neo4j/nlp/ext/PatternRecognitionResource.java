@@ -23,7 +23,7 @@ import org.neo4j.graphdb.Transaction;
 import org.neo4j.nlp.helpers.GraphManager;
 import org.neo4j.nlp.impl.manager.NodeManager;
 import org.neo4j.nlp.impl.util.LearningManager;
-import org.neo4j.nlp.impl.util.PatternMatcher;
+import org.neo4j.nlp.impl.util.VectorUtil;
 import org.neo4j.nlp.models.LabeledText;
 
 import javax.ws.rs.*;
@@ -135,15 +135,10 @@ public class PatternRecognitionResource {
 
             // This method trains a model on a supplied label and text content
 
-            Map<Long, Integer> patternMatchers = PatternMatcher.match(GraphManager.ROOT_TEMPLATE, text, db, GRAPH_MANAGER);
-            List<Long> longs = new ArrayList<>();
-            Collections.addAll(longs, patternMatchers.keySet().toArray(new Long[longs.size()]));
-            Map<String, Object> params = new HashMap<>();
-            params.put("id", longs);
-            String similarClass = executeCypher(db, getSimilarClassForFeatureVector(), params);
+            String result = new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, GRAPH_MANAGER, text));
 
             return Response.ok()
-                    .entity(similarClass)
+                    .entity(result)
                     .type(MediaType.APPLICATION_JSON)
                     .build();
 
@@ -237,10 +232,27 @@ public class PatternRecognitionResource {
 
         params.put("name", name);
 
-        String similarClass = executeCypher(db, getSimilarClass(), params);
+        //String similarClass = executeCypher(db, getSimilarClass(), params);
+
+        String similarClass = new Gson().toJson(VectorUtil.similarDocumentMapForClass(db, name));
 
         return Response.status( 200 )
                 .entity(similarClass)
+                .type(MediaType.APPLICATION_JSON)
+                .build();
+    }
+
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    @Path("/calculatesimilarity")
+    public Response calculateSimilarity(@PathParam("name") String name, @Context GraphDatabaseService db) throws IOException {
+
+        String result = "";
+
+        result = new Gson().toJson(VectorUtil.getCosineSimilarityVector(db));
+
+        return Response.ok()
+                .entity(result)
                 .type(MediaType.APPLICATION_JSON)
                 .build();
     }

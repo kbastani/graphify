@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RecursiveAction;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -65,7 +66,12 @@ public class PatternMatcher extends RecursiveAction {
         pool.invoke(new PatternMatcher(regex, input, matches, db, graphManager));
 
         // Cleaning up after yourself is important
-        pool.shutdownNow();
+        pool.shutdown();
+        try {
+            pool.awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
         return matches;
     }
