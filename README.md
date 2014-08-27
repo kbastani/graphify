@@ -22,15 +22,15 @@ Examples
 
 ####Get similar labels:
 
-    curl http://localhost:7474/service/pattern/similar/{label}
+    curl http://localhost:7474/service/graphify/similar/{label}
 
 ####Train the natural language recognition model on text about 'Document classification':
 
-    curl -H "Content-Type: application/json" -d '{"label": ["Document classification"], "text": "Documents may be classified according to their subjects or according to other attributes (such as document type, author, printing year etc.). In the rest of this article only subject classification is considered. There are two main philosophies of subject classification of documents: The content based approach and the request based approach."}' http://localhost:7474/service/pattern/training
+    curl -H "Content-Type: application/json" -d '{"label": ["Document classification"], "text": ["Documents may be classified according to their subjects or according to other attributes (such as document type, author, printing year etc.). In the rest of this article only subject classification is considered. There are two main philosophies of subject classification of documents: The content based approach and the request based approach."]}' http://localhost:7474/service/graphify/training
 
 ####Get the most related classes to a snippet of text:
 
-    curl -H "Content-Type: application/json" -d '{"text": "A document is a written or drawn representation of thoughts. Originating from the Latin Documentum meaning lesson - the verb means to teach, and is pronounced similarly, in the past it was usually used as a term for a written proof used as evidence."}' http://localhost:7474/service/pattern/classify
+    curl -H "Content-Type: application/json" -d '{"text": "A document is a written or drawn representation of thoughts. Originating from the Latin Documentum meaning lesson - the verb means to teach, and is pronounced similarly, in the past it was usually used as a term for a written proof used as evidence."}' http://localhost:7474/service/graphify/classify
 
 ####Get a sorted list of labels that are most related to the label 'Document classification':
 
