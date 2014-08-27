@@ -7,7 +7,7 @@ This is a Neo4j unmanaged extension used for document and text classification us
 
         mvn assembly:assembly -DdescriptorId=jar-with-dependencies
 
-2. Copy target/pattern4j-1.0.0-jar-with-dependencies.jar to the plugins/ directory of your Neo4j server.
+2. Copy target/graphify-1.0.0-jar-with-dependencies.jar to the plugins/ directory of your Neo4j server.
 
 3. Configure Neo4j by adding a line to conf/neo4j-server.properties:
 
@@ -34,7 +34,7 @@ Examples
 
 ####Get a sorted list of labels that are most related to the label 'Document classification':
 
-    curl http://localhost:7474/service/pattern/similar/Document%20classification
+    curl http://localhost:7474/service/graphify/similar/Document%20classification
 
 #####Example response:
 
