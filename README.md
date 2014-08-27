@@ -38,25 +38,27 @@ Examples
 
 #####Example response:
 
-    [
-        {
-            "weight": 0.3157894736842105,
-            "class": "Memory"
-        },
-        {
-            "weight": 0.2631578947368421,
-            "class": "Data"
-        },
-        {
-            "weight": 0.21052631578947367,
-            "class": "Intelligence"
-        },
-        {
-            "weight": 0.15789473684210525,
-            "class": "Machine learning"
-        },
-        {
-            "weight": 0.05263157894736842,
-            "class": "Document"
-        }
-    ]
+    {
+        "classes": [
+            {
+                "class": "Memory",
+                "similarity": 0.3157894736842105
+            },
+            {
+                "class": "Data",
+                "similarity": 0.2631578947368421
+            },
+            {
+                "class": "Intelligence",
+                "similarity": 0.21052631578947367
+            },
+            {
+                "class": "Machine learning",
+                "similarity": 0.15789473684210525
+            },
+            {
+                "class": "Document",
+                "similarity": 0.05263157894736842
+            }
+        ]
+    }
