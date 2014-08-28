@@ -41,24 +41,24 @@ Examples
     {
         "classes": [
             {
-                "class": "Memory",
-                "similarity": 0.3157894736842105
-            },
-            {
-                "class": "Data",
-                "similarity": 0.2631578947368421
+                "class": "Document",
+                "similarity": 0.19563160874988336
             },
             {
                 "class": "Intelligence",
-                "similarity": 0.21052631578947367
+                "similarity": 0.1778887274627789
             },
             {
                 "class": "Machine learning",
-                "similarity": 0.15789473684210525
+                "similarity": 0.14800216450227222
             },
             {
-                "class": "Document",
-                "similarity": 0.05263157894736842
+                "class": "Data",
+                "similarity": 0.1467923282078174
+            },
+            {
+                "class": "Memory",
+                "similarity": 0.14600346713601134
             }
         ]
     }
