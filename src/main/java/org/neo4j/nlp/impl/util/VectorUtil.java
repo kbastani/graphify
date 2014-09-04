@@ -19,12 +19,12 @@ public class VectorUtil {
 
     public static final Cache<String, Object> vectorSpaceModelCache = CacheBuilder.newBuilder().maximumSize(20000000).build();
 
-    public static Integer dotProduct(List<Integer> v1, List<Integer> v2)
+    public static Double dotProduct(List<Double> v1, List<Double> v2)
     {
         if(v1.size() != v2.size())
             throw new IllegalArgumentException("Vectors must be of equal length.");
 
-        Integer result = 0;
+        Double result = 0.0;
         for (int i = 0; i < v1.size(); i++) {
             result = result + (v1.get(i) * v2.get(i));
         }
@@ -32,7 +32,7 @@ public class VectorUtil {
         return result;
     }
 
-    public static double normVector(List<Integer> v1)
+    public static double normVector(List<Double> v1)
     {
         double result = 0.0;
 
@@ -43,10 +43,10 @@ public class VectorUtil {
         return Math.sqrt(result);
     }
 
-    public static double cosineSimilarity(List<Integer> v1, List<Integer> v2)
+    public static double cosineSimilarity(List<Double> v1, List<Double> v2)
     {
         // Get the dot product
-        Integer dp = dotProduct(v1, v2);
+        Double dp = dotProduct(v1, v2);
 
         // Get the norm vector
         double nv = normVector(v1) * normVector(v2);
@@ -54,7 +54,7 @@ public class VectorUtil {
         return dp / nv;
     }
 
-    public static List<Integer> getFeatureVector(GraphDatabaseService db, GraphManager graphManager, String rootPattern, String input) {
+    public static List<Double> getFeatureVector(GraphDatabaseService db, GraphManager graphManager, String rootPattern, String input) {
         Map<String, Object> params = new HashMap<>();
         Map<Long, Integer> patternMatchers = PatternMatcher.match(rootPattern, input, db, graphManager);
         List<Integer> featureIndexList = getFeatureIndexList(db);
@@ -62,7 +62,10 @@ public class VectorUtil {
         List<Integer> longs = new ArrayList<>();
         Collections.addAll(longs, patternMatchers.keySet().stream().map(n -> n.intValue()).collect(Collectors.toList()).toArray(new Integer[longs.size()]));
 
-        return featureIndexList.stream().map(i -> longs.contains(i) ? 1 : 0).collect(Collectors.toList());
+        // Get the total number of recognized features
+        Integer sum = patternMatchers.values().stream().mapToInt(a -> a.intValue()).sum();
+
+        return featureIndexList.stream().map(i -> longs.contains(i) ? (patternMatchers.get(i.longValue()).doubleValue() / sum.doubleValue()) : 0.0).collect(Collectors.toList());
     }
 
     private static List<Integer> getFeatureIndexList(GraphDatabaseService db) {
@@ -103,10 +106,11 @@ public class VectorUtil {
         {
             List<LinkedHashMap<String, Object>> resultList = new ArrayList<>();
             LinkedHashMap<String, Double> classMap = new LinkedHashMap<>();
-            List<Integer> v1 = featureIndexList.stream().map(i -> documents.get(key).contains(i) ? 1 : 0).collect(Collectors.toList());
+            List<Double> v1 = featureIndexList.stream().map(i -> documents.get(key).contains(i) ? 1.0 : 0.0).collect(Collectors.toList());
             documents.keySet().stream().forEach(otherKey -> {
-                List<Integer> v2 = featureIndexList.stream().map(i -> documents.get(otherKey).contains(i) ? featureIndexList.indexOf(i) : 0).collect(Collectors.toList());
-                classMap.put(otherKey, key == otherKey ? 0 : cosineSimilarity(v1, v2));
+
+                List<Double> v2 = featureIndexList.stream().map(i -> documents.get(otherKey).contains(i) ? ((Integer) featureIndexList.indexOf(i)).doubleValue() : 0.0).collect(Collectors.toList());
+                classMap.put(otherKey, key == otherKey ? 0.0 : cosineSimilarity(v1, v2));
             });
 
             final List<LinkedHashMap<String, Object>> finalResultList = resultList;
@@ -157,7 +161,7 @@ public class VectorUtil {
 
     public static Map<String, List<LinkedHashMap<String, Object>>> similarDocumentMapForVector(GraphDatabaseService db, GraphManager graphManager, String input) {
 
-        List<Integer> features = getFeatureVector(db, graphManager, GraphManager.ROOT_TEMPLATE, input);
+        List<Double> features = getFeatureVector(db, graphManager, GraphManager.ROOT_TEMPLATE, input);
 
         Object cfIndex = vectorSpaceModelCache.getIfPresent("CLASS_FEATURE_INDEX");
         Object vsmIndex = vectorSpaceModelCache.getIfPresent("GLOBAL_FEATURE_INDEX");
@@ -191,7 +195,7 @@ public class VectorUtil {
         LinkedHashMap<String, Double> classMap = new LinkedHashMap<>();
 
         documents.keySet().stream().parallel().forEach(otherKey -> {
-            List<Integer> v2 = featureIndexList.stream().parallel().map(i -> documents.get(otherKey).contains(i) ? featureIndexList.indexOf(i) : 0).collect(Collectors.toList());
+            List<Double> v2 = featureIndexList.stream().parallel().map(i -> documents.get(otherKey).contains(i) ? 1.0 : 0.0).collect(Collectors.toList());
             classMap.put(otherKey, cosineSimilarity(features, v2));
         });
 
@@ -202,7 +206,16 @@ public class VectorUtil {
                 resultList.add(localMap);
         });
 
-        Collections.sort(resultList, (o1, o2) -> ((int) ((double) o2.get("similarity") * 10000000.0) - (int) ((double) o1.get("similarity") * 10000000.0)));
+        try {
+            resultList.sort((a, b) ->
+            {
+                Double diff = (((double) a.get("similarity")) - ((double) b.get("similarity")));
+                return diff > 0 ? -1 : diff.equals(0) ? 0 : 1;
+            });
+        }
+        catch(NullPointerException ex) {
+            // resultList is empty or null
+        }
 
         results.put("classes", resultList);
 
@@ -242,11 +255,11 @@ public class VectorUtil {
         List<LinkedHashMap<String, Object>> resultList = new ArrayList<>();
         LinkedHashMap<String, Double> classMap = new LinkedHashMap<>();
 
-        List<Integer> v1 = featureIndexList.stream().parallel().map(i -> documents.get(key).contains(i) ? 1 : 0).collect(Collectors.toList());
+        List<Double> v1 = featureIndexList.stream().parallel().map(i -> documents.get(key).contains(i) ? ((Integer)featureIndexList.indexOf(i)).doubleValue() : 0.0).collect(Collectors.toList());
 
 
         documents.keySet().stream().filter(otherKey -> !key.equals(otherKey)).parallel().forEach(otherKey -> {
-            List<Integer> v2 = featureIndexList.stream().parallel().map(i -> documents.get(otherKey).contains(i) ? featureIndexList.indexOf(i) : 0).collect(Collectors.toList());
+            List<Double> v2 = featureIndexList.stream().parallel().map(i -> documents.get(otherKey).contains(i) ? ((Integer)featureIndexList.indexOf(i)).doubleValue() : 0.0).collect(Collectors.toList());
             classMap.put(otherKey, cosineSimilarity(v1, v2));
         });
 
@@ -259,7 +272,13 @@ public class VectorUtil {
             }
         });
 
-        Collections.sort(resultList, (o1, o2) -> ((int) ((double) o2.get("similarity") * 10000000.0) - (int) ((double) o1.get("similarity") * 10000000.0)));
+        resultList.sort((a, b) ->
+        {
+            Double diff = (((double) a.get("similarity")) - ((double) b.get("similarity")));
+            return diff > 0 ? -1 : diff.equals(0) ? 0 : 1;
+        });
+
+        //Collections.sort(resultList, (o1, o2) -> (((double) o2.get("similarity")) - ((double) o1.get("similarity"))));
 
         results.put("classes", resultList);
 
@@ -276,9 +295,9 @@ public class VectorUtil {
         {
             List<LinkedHashMap<String, Object>> resultList = new ArrayList<>();
             LinkedHashMap<String, Double> classMap = new LinkedHashMap<>();
-            List<Integer> v1 = featureIndexList.stream().map(i -> documents.get(key).contains(i) ? 1 : 0).collect(Collectors.toList());
+            List<Double> v1 = featureIndexList.stream().map(i -> documents.get(key).contains(i) ? 1.0 : 0.0).collect(Collectors.toList());
             documents.keySet().stream().filter(otherKey -> key != otherKey).forEach(otherKey -> {
-                List<Integer> v2 = featureIndexList.stream().map(i -> documents.get(otherKey).contains(i) ? featureIndexList.indexOf(i) : 0).collect(Collectors.toList());
+                List<Double> v2 = featureIndexList.stream().map(i -> documents.get(otherKey).contains(i) ? featureIndexList.indexOf(i) : 0.0).collect(Collectors.toList());
                 classMap.put(otherKey, cosineSimilarity(v1, v2));
             });
 
@@ -358,7 +377,7 @@ public class VectorUtil {
 
     public static List<Integer> getFeaturesForClass(GraphDatabaseService db, String className)
     {
-        String featureCypher = "MATCH (pattern:Pattern)-[:HAS_CLASS]->(class:Class { name: {class} }) RETURN id(pattern) as index";
+        String featureCypher = "MATCH (pattern:Pattern)-[:HAS_CLASS]->(class:Class { name: {class} }) WHERE NOT (pattern)-[:NEXT]->() RETURN id(pattern) as index";
         Map<String, Object> params = new HashMap<>();
         params.put("class", className);
         String cypherResults = CypherUtil.executeCypher(db, featureCypher, params);

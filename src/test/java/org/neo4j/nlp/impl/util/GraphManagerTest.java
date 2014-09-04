@@ -258,26 +258,26 @@ public class GraphManagerTest {
         System.out.println(getFeatureVector(db, graphManager, rootPattern, input));
 
         String input1 = "The last word in a sentence is interesting";
-        List<Integer> v1 = getFeatureVector(db, graphManager, rootPattern, input1);
+        List<Double> v1 = getFeatureVector(db, graphManager, rootPattern, input1);
         String input2 = "The tenth word in a paragraph is interesting";
-        List<Integer> v2 = getFeatureVector(db, graphManager, rootPattern, input2);
+        List<Double> v2 = getFeatureVector(db, graphManager, rootPattern, input2);
 
         double cosineSimilarity = VectorUtil.cosineSimilarity(v1, v2);
 
         System.out.println(cosineSimilarity);
 
         String input3 = "The tenth word in a paragraph is interesting";
-        List<Integer> v3 = getFeatureVector(db, graphManager, rootPattern, input3);
+        List<Double> v3 = getFeatureVector(db, graphManager, rootPattern, input3);
 
         System.out.println(VectorUtil.cosineSimilarity(v1, v3));
 
-        String input4 = "The fifth word in a document is interesting";
-        List<Integer> v4 = getFeatureVector(db, graphManager, rootPattern, input4);
+        String input4 = "Durr in durr a durr";
+        List<Double> v4 = getFeatureVector(db, graphManager, rootPattern, input4);
 
         System.out.println(VectorUtil.cosineSimilarity(v1, v4));
 
         String input5 = "The sixth letter in a stanza is interesting";
-        List<Integer> v5 = getFeatureVector(db, graphManager, rootPattern, input5);
+        List<Double> v5 = getFeatureVector(db, graphManager, rootPattern, input5);
 
         //System.out.println(VectorUtil.cosineSimilarity(v1, v5));
 
@@ -289,7 +289,7 @@ public class GraphManagerTest {
 
         //System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForClass(db, "document")));
 
-        System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, graphManager, input5)));
+        System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, graphManager, input3)));
 
 //        Map<String, Object> params = new HashMap<>();
 //        System.out.println(CypherUtil.executeCypher(db, "MATCH (class:Class)-[r:RELATED_TO]->(classes:Class) RETURN class.name as class, classes.name as relatedTo, r.similarity as similarity ORDER BY similarity DESC", params));
@@ -388,7 +388,7 @@ public class GraphManagerTest {
 
     }
 
-    private List<Integer> getFeatureVector(GraphDatabaseService db, GraphManager graphManager, String rootPattern, String input) {
+    private List<Double> getFeatureVector(GraphDatabaseService db, GraphManager graphManager, String rootPattern, String input) {
         Map<String, Object> params = new HashMap<>();
         Map<Long, Integer> patternMatchers = PatternMatcher.match(rootPattern, input, db, graphManager);
         String featureIndex = executeCypher(db, getFeatureIndex(), params);
@@ -414,7 +414,9 @@ public class GraphManagerTest {
         //System.out.println(longs);
         //System.out.println(featureIndexList);
 
-        return featureIndexList.stream().map(i -> longs.contains(i) ? 1 : 0).collect(Collectors.toList());
+        Integer sum = patternMatchers.values().stream().mapToInt(a -> a.intValue()).sum();
+
+        return featureIndexList.stream().map(i -> longs.contains(i) ? (patternMatchers.get(i.longValue()).doubleValue() / sum.doubleValue()) : 0.0).collect(Collectors.toList());
     }
 
     private void classifyInput(GraphDatabaseService db, GraphManager graphManager, String rootPattern, String input) {
