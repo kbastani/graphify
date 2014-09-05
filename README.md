@@ -3,6 +3,15 @@ Graphify
 
 This is a Neo4j unmanaged extension used for document and text classification using graph-based hierarchical pattern recognition.
 
+![Training Dataset](http://i.imgur.com/FlsmQkf.png?1 "Training Dataset")
+
+![Natural Language Parsing Model](http://i.imgur.com/hJuRJje.png?1 "Natural Language Parsing Model")
+
+![Classify Unlabeled Documents](http://i.imgur.com/j90qOru.png?2 "Classify Unlabeled Documents")
+
+Building the extension
+==========================
+
 1. Build it:
 
         mvn assembly:assembly -DdescriptorId=jar-with-dependencies
@@ -17,7 +26,7 @@ This is a Neo4j unmanaged extension used for document and text classification us
 
 5. Query it over HTTP.
 
-Examples
+Using it
 ==========================
 
 ####Get similar labels:
