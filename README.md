@@ -1,7 +1,7 @@
 Graphify
 ==========================
 
-This is a Neo4j unmanaged extension used for document and text classification using graph-based hierarchical pattern recognition.
+This is a Neo4j unmanaged extension used for document and text classification.
 
 ![Training Dataset](http://i.imgur.com/FlsmQkf.png?1 "Training Dataset")
 
