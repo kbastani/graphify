@@ -40,16 +40,21 @@
 <p><img src="http://i.imgur.com/j90qOru.png?2" alt="Classify Unlabeled Documents" title="Classify Unlabeled Documents"></p>
 
 <h1>
+<a name="compiled-extension" class="anchor" href="#compiled-extension"><span class="octicon octicon-link"></span></a>Compiled extension</h1>
+
+<p>The compiled extension is available from the <code>bin</code> directory.</p>
+
+<h1>
 <a name="building-the-extension" class="anchor" href="#building-the-extension"><span class="octicon octicon-link"></span></a>Building the extension</h1>
 
 <ol>
 <li>
-<p>Build it:</p>
+<p>To build it:</p>
 
-<pre><code>mvn assembly:assembly -DdescriptorId=jar-with-dependencies
+<pre><code>src/extension mvn assembly:assembly -DdescriptorId=jar-with-dependencies
 </code></pre>
 </li>
-<li><p>Copy target/graphify-1.0.0-jar-with-dependencies.jar to the plugins/ directory of your Neo4j server.</p></li>
+<li><p>Copy <code>src/extension/target/graphify-1.0.0-jar-with-dependencies.jar</code> to the <code>plugins/</code> directory of your Neo4j server.</p></li>
 <li>
 <p>Configure Neo4j by adding a line to conf/neo4j-server.properties:</p>
 
@@ -74,9 +79,15 @@
 </code></pre>
 
 <h4>
-<a name="get-the-most-related-classes-to-a-snippet-of-text" class="anchor" href="#get-the-most-related-classes-to-a-snippet-of-text"><span class="octicon octicon-link"></span></a>Get the most related classes to a snippet of text:</h4>
+<a name="classify-an-unlabeled-text" class="anchor" href="#classify-an-unlabeled-text"><span class="octicon octicon-link"></span></a>Classify an unlabeled text:</h4>
 
 <pre><code>curl -H "Content-Type: application/json" -d '{"text": "A document is a written or drawn representation of thoughts. Originating from the Latin Documentum meaning lesson - the verb means to teach, and is pronounced similarly, in the past it was usually used as a term for a written proof used as evidence."}' http://localhost:7474/service/graphify/classify
+</code></pre>
+
+<h4>
+<a name="get-a-list-of-the-extracted-semantic-features-matching-a-text" class="anchor" href="#get-a-list-of-the-extracted-semantic-features-matching-a-text"><span class="octicon octicon-link"></span></a>Get a list of the extracted semantic features matching a text:</h4>
+
+<pre><code>curl -H "Content-Type: application/json" -d '{"text": "A document is a written or drawn representation of thoughts. Originating from the Latin Documentum meaning lesson - the verb means to teach, and is pronounced similarly, in the past it was usually used as a term for a written proof used as evidence."}' http://localhost:7474/service/graphify/extractfeatures
 </code></pre>
 
 <h4>
