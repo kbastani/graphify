@@ -19,13 +19,13 @@ Building the extension
 
 1. To build it:
 
-        `src/extension mvn assembly:assembly -DdescriptorId=jar-with-dependencies`
+        src/extension mvn assembly:assembly -DdescriptorId=jar-with-dependencies
 
 2. Copy `src/extension/target/graphify-1.0.0-jar-with-dependencies.jar` to the `plugins/` directory of your Neo4j server.
 
 3. Configure Neo4j by adding a line to conf/neo4j-server.properties:
 
-        `org.neo4j.server.thirdparty_jaxrs_classes=org.neo4j.nlp.ext=/service`
+        org.neo4j.server.thirdparty_jaxrs_classes=org.neo4j.nlp.ext=/service
 
 4. Start Neo4j server.
 
