@@ -9,18 +9,23 @@ This is a Neo4j unmanaged extension used for document and text classification.
 
 ![Classify Unlabeled Documents](http://i.imgur.com/j90qOru.png?2 "Classify Unlabeled Documents")
 
+Compiled extension
+==========================
+
+The compiled extension is available from the `bin` directory.
+
 Building the extension
 ==========================
 
-1. Build it:
+1. To build it:
 
-        mvn assembly:assembly -DdescriptorId=jar-with-dependencies
+        `src/extension mvn assembly:assembly -DdescriptorId=jar-with-dependencies`
 
-2. Copy target/graphify-1.0.0-jar-with-dependencies.jar to the plugins/ directory of your Neo4j server.
+2. Copy `src/extension/target/graphify-1.0.0-jar-with-dependencies.jar` to the `plugins/` directory of your Neo4j server.
 
 3. Configure Neo4j by adding a line to conf/neo4j-server.properties:
 
-        org.neo4j.server.thirdparty_jaxrs_classes=org.neo4j.nlp.ext=/service
+        `org.neo4j.server.thirdparty_jaxrs_classes=org.neo4j.nlp.ext=/service`
 
 4. Start Neo4j server.
 
@@ -37,9 +42,13 @@ Using it
 
     curl -H "Content-Type: application/json" -d '{"label": ["Document classification"], "text": ["Documents may be classified according to their subjects or according to other attributes (such as document type, author, printing year etc.). In the rest of this article only subject classification is considered. There are two main philosophies of subject classification of documents: The content based approach and the request based approach."]}' http://localhost:7474/service/graphify/training
 
-####Get the most related classes to a snippet of text:
+####Classify an unlabeled text:
 
     curl -H "Content-Type: application/json" -d '{"text": "A document is a written or drawn representation of thoughts. Originating from the Latin Documentum meaning lesson - the verb means to teach, and is pronounced similarly, in the past it was usually used as a term for a written proof used as evidence."}' http://localhost:7474/service/graphify/classify
+    
+####Get a list of the extracted semantic features matching a text:
+
+    curl -H "Content-Type: application/json" -d '{"text": "A document is a written or drawn representation of thoughts. Originating from the Latin Documentum meaning lesson - the verb means to teach, and is pronounced similarly, in the past it was usually used as a term for a written proof used as evidence."}' http://localhost:7474/service/graphify/extractfeatures
 
 ####Get a sorted list of labels that are most related to the label 'Document classification':
 
