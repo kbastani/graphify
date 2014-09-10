@@ -1,6 +1,8 @@
 Graphify
 ==========================
 
+![Travis Build Status](https://travis-ci.org/kbastani/graphify.svg?branch=master "Travis Build Status")
+
 This is a Neo4j unmanaged extension used for document and text classification.
 
 ![Training Dataset](http://i.imgur.com/FlsmQkf.png?1 "Training Dataset")
