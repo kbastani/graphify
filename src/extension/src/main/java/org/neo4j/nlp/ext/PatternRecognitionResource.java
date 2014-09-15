@@ -147,7 +147,7 @@ public class PatternRecognitionResource {
             {
                 throw new Exception("Error parsing JSON");
             }
-            List<String> phrases = VectorUtil.getPhrases(db, cleanText(text), GRAPH_MANAGER);
+            List<LinkedHashMap<String, Object>> phrases = VectorUtil.getPhrases(db, cleanText(text), GRAPH_MANAGER);
 
 
             return Response.ok()

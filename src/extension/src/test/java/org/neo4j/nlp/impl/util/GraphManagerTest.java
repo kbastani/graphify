@@ -5,6 +5,7 @@ import com.google.gson.Gson;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 
 public class GraphManagerTest {
 
+    @Ignore
     @Test
     public void testCypherJsonResult() throws Exception {
 
@@ -96,6 +98,7 @@ public class GraphManagerTest {
         Assert.assertTrue(stringArray.getClass() == String[].class);
     }
 
+    @Ignore
     @Test
     public void testLearningManager() throws Exception {
         // Invalidate all caches
@@ -279,8 +282,10 @@ public class GraphManagerTest {
         System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, graphManager, input3)));
         System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, graphManager, input1)));
         System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForClass(db, "paragraph")));
+
     }
 
+    @Ignore
     @Test
     public void testBackwardsPropagation() throws Exception {
 

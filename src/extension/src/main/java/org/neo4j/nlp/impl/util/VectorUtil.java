@@ -5,6 +5,7 @@ import com.google.common.cache.CacheBuilder;
 import org.javalite.common.Convert;
 import org.neo4j.graphdb.*;
 import org.neo4j.graphdb.traversal.Evaluators;
+import org.neo4j.helpers.collection.IteratorUtil;
 import org.neo4j.nlp.helpers.GraphManager;
 import org.neo4j.nlp.impl.manager.NodeManager;
 import org.neo4j.tooling.GlobalGraphOperations;
@@ -66,26 +67,171 @@ public class VectorUtil {
         return dp / nv;
     }
 
-    public static List<String> getPhrases(GraphDatabaseService db, String text, GraphManager graphManager) {
+    public static double tfidf(GraphDatabaseService db, Long featureId, Long classId)
+    {
+        double tfidf;
+
+        double tf = getTermFrequencyForDocument(db, featureId, classId);
+        double idf = getInverseDocumentFrequency(db, featureId);
+
+        tfidf = tf * idf;
+
+        return tfidf;
+    }
+
+    public static double getInverseDocumentFrequency(GraphDatabaseService db, Long featureId)
+    {
+        Double idf;
+
+        Double d = ((Integer)getDocumentSize(db)).doubleValue();
+        Double dt = ((Integer)getDocumentSizeForFeature(db, featureId)).doubleValue();
+
+        idf = Math.log(d / dt);
+
+        return idf;
+    }
+
+    public static Map<Long, Integer> getTermFrequencyMapForDocument(GraphDatabaseService db, Long classId)
+    {
+        Map<Long, Integer> termDocumentMatrix;
+
+        String cacheKey = "TERM_DOCUMENT_FREQUENCY_" + classId;
+
+        if(vectorSpaceModelCache.getIfPresent(cacheKey) == null) {
+            Node classNode = db.getNodeById(classId);
+
+            termDocumentMatrix = new HashMap<>();
+
+            IteratorUtil.asCollection(db.traversalDescription()
+                    .depthFirst()
+                    .relationships(withName("HAS_CLASS"), Direction.INCOMING)
+                    .evaluator(Evaluators.fromDepth(1))
+                    .evaluator(Evaluators.toDepth(1))
+                    .traverse(classNode)).stream()
+                    .forEach(p ->
+                            termDocumentMatrix.put(p.endNode().getId(), (Integer) p.lastRelationship().getProperty("matches")));
+
+            vectorSpaceModelCache.put(cacheKey, termDocumentMatrix);
+        }
+        else
+        {
+            termDocumentMatrix =  (Map<Long, Integer>)vectorSpaceModelCache.getIfPresent(cacheKey);
+        }
+
+        return termDocumentMatrix;
+    }
+
+    public static int getTermFrequencyForDocument(GraphDatabaseService db, Long featureId, Long classId)
+    {
+        int frequency = getTermFrequencyMapForDocument(db, classId).get(featureId);
+        return frequency;
+    }
+
+    public static int getDocumentSize(GraphDatabaseService db)
+    {
+        int documentSize;
+        String cacheKey = "GLOBAL_DOCUMENT_SIZE";
+        if(vectorSpaceModelCache.getIfPresent(cacheKey) == null) {
+            documentSize = IteratorUtil.count(GlobalGraphOperations.at(db).getAllNodesWithLabel(DynamicLabel.label("Class")));
+            vectorSpaceModelCache.put(cacheKey, documentSize);
+        }
+        else
+        {
+            documentSize = (Integer)vectorSpaceModelCache.getIfPresent(cacheKey);
+        }
+        return documentSize;
+    }
+
+    public static int getDocumentSizeForFeature(GraphDatabaseService db, Long id)
+    {
+        int documentSize;
+
+        String cacheKey = "DOCUMENT_SIZE_FEATURE_" + id;
+
+        if(vectorSpaceModelCache.getIfPresent(cacheKey) == null) {
+            Node startNode = db.getNodeById(id);
+
+            Iterator<Node> classes = db.traversalDescription()
+                    .depthFirst()
+                    .relationships(withName("HAS_CLASS"), Direction.OUTGOING)
+                    .evaluator(Evaluators.fromDepth(1))
+                    .evaluator(Evaluators.toDepth(1))
+                    .traverse(startNode)
+                    .nodes().iterator();
+
+            documentSize = IteratorUtil.count(classes);
+
+            vectorSpaceModelCache.put(cacheKey, documentSize);
+        }
+        else
+        {
+            documentSize = (Integer)vectorSpaceModelCache.getIfPresent(cacheKey);
+        }
+
+        return documentSize;
+    }
+
+    public static List<LinkedHashMap<String, Object>> getFeatureFrequencyMap(GraphDatabaseService db, String text, GraphManager graphManager) {
         // This method trains a model on a supplied label and text content
         Map<Long, Integer> patternMatchers = PatternMatcher.match(GraphManager.ROOT_TEMPLATE, text, db, graphManager);
 
         // Translate map to phrases
-        return patternMatchers.keySet().stream()
-                .map(a -> (String) NodeManager.getNodeFromGlobalCache(a).get("phrase"))
+        List<LinkedHashMap<String, Object>> results = patternMatchers.keySet().stream()
+                .map(a ->
+                {
+                    LinkedHashMap<String, Object> linkHashMap = new LinkedHashMap<>();
+                    linkHashMap.put("feature", a.intValue());
+                    linkHashMap.put("frequency", patternMatchers.get(a));
+                    return linkHashMap;
+                })
                 .collect(Collectors.toList());
+
+        results.sort((a, b) ->
+        {
+            Integer diff = ((Integer)a.get("frequency")) - ((Integer)b.get("frequency"));
+            return diff > 0 ? -1 : diff.equals(0) ? 0 : 1;
+        });
+
+        return results;
+    }
+
+    public static List<LinkedHashMap<String, Object>> getPhrases(GraphDatabaseService db, String text, GraphManager graphManager) {
+        // This method trains a model on a supplied label and text content
+        Map<Long, Integer> patternMatchers = PatternMatcher.match(GraphManager.ROOT_TEMPLATE, text, db, graphManager);
+
+        // Translate map to phrases
+        List<LinkedHashMap<String, Object>> results = patternMatchers.keySet().stream()
+                .map(a ->
+                {
+                    LinkedHashMap<String, Object> linkHashMap = new LinkedHashMap<>();
+                    linkHashMap.put("feature", NodeManager.getNodeFromGlobalCache(a).get("phrase"));
+                    linkHashMap.put("frequency", patternMatchers.get(a));
+                    return linkHashMap;
+                })
+                .collect(Collectors.toList());
+
+        results.sort((a, b) ->
+        {
+            Integer diff = ((Integer)a.get("frequency")) - ((Integer)b.get("frequency"));
+            return diff > 0 ? -1 : diff.equals(0) ? 0 : 1;
+        });
+
+        return results;
     }
 
     private static List<Double> getFeatureVector(GraphDatabaseService db, GraphManager graphManager, String input, List<Integer> featureIndexList) {
-        Map<Long, Integer> patternMatchers = PatternMatcher.match(GraphManager.ROOT_TEMPLATE, input, db, graphManager);
+        List<LinkedHashMap<String, Object>> featureFrequencyMap = getFeatureFrequencyMap(db, input, graphManager);
 
-        List<Integer> longs = new ArrayList<>();
-        Collections.addAll(longs, patternMatchers.keySet().stream().map(Long::intValue).collect(Collectors.toList()).toArray(new Integer[longs.size()]));
+        List<Integer> longs = featureFrequencyMap.stream().map(a -> (Integer)a.get("feature")).collect(Collectors.toList());
 
-        // Get the total number of recognized features
-        Integer sum = patternMatchers.values().stream().mapToInt(Integer::intValue).sum();
+//        ((Integer) featureFrequencyMap.stream()
+//                .filter(a -> (a.get("feature")).equals(i))
+//                .collect(Collectors.toList()).get(0).get("frequency")).doubleValue()
 
-        return featureIndexList.stream().map(i -> longs.contains(i) ? (patternMatchers.get(i.longValue()).doubleValue() / sum.doubleValue()) : 0.0).collect(Collectors.toList());
+        return featureIndexList.stream().map(i -> longs.contains(i) ?
+                1.0
+                :
+                0.0).collect(Collectors.toList());
     }
 
     private static List<Integer> getFeatureIndexList(GraphDatabaseService db) {
@@ -108,7 +254,7 @@ public class VectorUtil {
 
     public static Map<String, Object> getCosineSimilarityVector(GraphDatabaseService db)
     {
-        Map<String, List<Integer>> documents = getFeaturesForAllClasses(db);
+        Map<String, List<LinkedHashMap<String, Object>>> documents = getFeaturesForAllClasses(db);
         Map<String, List<LinkedHashMap<String, Object>>> results = new HashMap<>();
         List<Integer> featureIndexList = getFeatureIndexList(db);
 
@@ -121,22 +267,9 @@ public class VectorUtil {
             List<LinkedHashMap<String, Object>> resultList = new ArrayList<>();
             LinkedHashMap<String, Double> classMap = new LinkedHashMap<>();
 
-//            List<Double> v1 = IntStream.range(0, featureIndexList.size()).parallel()
-//                    .mapToObj(a -> documents.get(key).contains(featureIndexList.get(a)) ? a : 0)
-//                    .collect(Collectors.toList())
-//                    .stream()
-//                    .map(v -> v.doubleValue())
-//                    .collect(Collectors.toList());
-
             List<Double> v1 = featureIndexList.stream().map(i -> documents.get(key).contains(i) ? featureIndexList.indexOf(i) : 0.0).collect(Collectors.toList());
             documents.keySet().stream().forEach(otherKey -> {
 
-//                List<Double> v2 = IntStream.range(0, featureIndexList.size()).parallel()
-//                        .mapToObj(a -> documents.get(otherKey).contains(featureIndexList.get(a)) ? a : 0)
-//                        .collect(Collectors.toList())
-//                        .stream()
-//                        .map(v -> v.doubleValue())
-//                        .collect(Collectors.toList());
                 List<Double> v2 = featureIndexList.stream().map(i -> documents.get(otherKey).contains(i) ? featureIndexList.indexOf(i) : 0.0).collect(Collectors.toList());
                 classMap.put(otherKey, cosineSimilarity(v1, v2));
             });
@@ -185,32 +318,13 @@ public class VectorUtil {
     }
 
     public static Map<String, List<LinkedHashMap<String, Object>>> similarDocumentMapForVector(GraphDatabaseService db, GraphManager graphManager, String input) {
-        Object cfIndex = vectorSpaceModelCache.getIfPresent("CLASS_FEATURE_INDEX");
-        Object vsmIndex = vectorSpaceModelCache.getIfPresent("GLOBAL_FEATURE_INDEX");
-
-        Map<String, List<Integer>> documents;
+        Map<String, List<LinkedHashMap<String, Object>>> documents;
         Map<String, List<LinkedHashMap<String, Object>>> results = new HashMap<>();
         List<Integer> featureIndexList;
 
-        if(cfIndex != null)
-        {
-            documents = (Map<String, List<Integer>>) cfIndex;
-        }
-        else
-        {
-            documents = getFeaturesForAllClasses(db);
-            vectorSpaceModelCache.put("CLASS_FEATURE_INDEX", documents);
-        }
-
-        if(vsmIndex != null)
-        {
-            featureIndexList = (List<Integer>) vsmIndex;
-        }
-        else
-        {
-            featureIndexList = getFeatureIndexList(db);
-            vectorSpaceModelCache.put("GLOBAL_FEATURE_INDEX", featureIndexList);
-        }
+        VsmCacheModel vsmCacheModel = new VsmCacheModel(db).invoke();
+        featureIndexList = vsmCacheModel.getFeatureIndexList();
+        documents = vsmCacheModel.getDocuments();
 
         List<Double> features = getFeatureVector(db, graphManager, input, featureIndexList);
 
@@ -218,7 +332,7 @@ public class VectorUtil {
         LinkedHashMap<String, Double> classMap = new LinkedHashMap<>();
 
         documents.keySet().stream().forEach(otherKey -> {
-            List<Double> v2 = featureIndexList.stream().map(i -> documents.get(otherKey).contains(i) ? featureIndexList.indexOf(i) : 0.0).collect(Collectors.toList());
+            List<Double> v2 = getWeightVectorForClass(documents, otherKey, featureIndexList, db);
             classMap.put(otherKey, cosineSimilarity(v2, features));
         });
 
@@ -248,58 +362,25 @@ public class VectorUtil {
     }
 
     public static Map<String, List<LinkedHashMap<String, Object>>> similarDocumentMapForClass(GraphDatabaseService db, String className) {
-        Object cfIndex = vectorSpaceModelCache.getIfPresent("CLASS_FEATURE_INDEX");
-        Object vsmIndex = vectorSpaceModelCache.getIfPresent("GLOBAL_FEATURE_INDEX");
 
-        Map<String, List<Integer>> documents;
+
+        Map<String, List<LinkedHashMap<String, Object>>> documents;
         Map<String, List<LinkedHashMap<String, Object>>> results = new HashMap<>();
         List<Integer> featureIndexList;
 
-        if(cfIndex != null)
-        {
-            documents = (Map<String, List<Integer>>) cfIndex;
-        }
-        else
-        {
-            documents = getFeaturesForAllClasses(db);
-            vectorSpaceModelCache.put("CLASS_FEATURE_INDEX", documents);
-        }
-
-        if(vsmIndex != null)
-        {
-            featureIndexList = (List<Integer>) vsmIndex;
-        }
-        else
-        {
-            featureIndexList = getFeatureIndexList(db);
-            vectorSpaceModelCache.put("GLOBAL_FEATURE_INDEX", featureIndexList);
-        }
+        VsmCacheModel vsmCacheModel = new VsmCacheModel(db).invoke();
+        featureIndexList = vsmCacheModel.getFeatureIndexList();
+        documents = vsmCacheModel.getDocuments();
 
         final String key = className;
 
         List<LinkedHashMap<String, Object>> resultList = new ArrayList<>();
         LinkedHashMap<String, Double> classMap = new LinkedHashMap<>();
 
-        List<Double> v1 = featureIndexList.stream().map(i -> documents.get(key).contains(i) ? featureIndexList.indexOf(i) : 0.0).collect(Collectors.toList());
-//        List<Double> v1 = IntStream.range(0, featureIndexList.size())
-//                .parallel()
-//                .mapToObj(a -> documents.get(key).contains(featureIndexList.get(a)) ? a : 0)
-//                .collect(Collectors.toList())
-//                .stream()
-//                .parallel()
-//                .map(v -> v.doubleValue())
-//                .collect(Collectors.toList());
+        List<Double> v1 = getFeatureVectorForDocumentClass(documents, featureIndexList, key);
 
         documents.keySet().stream().filter(otherKey -> !key.equals(otherKey)).forEach(otherKey -> {
-            List<Double> v2 = featureIndexList.stream().map(i -> documents.get(otherKey).contains(i) ? featureIndexList.indexOf(i) : 0.0).collect(Collectors.toList());
-//            List<Double> v2 = IntStream.range(0, featureIndexList.size())
-//                    .parallel()
-//                    .mapToObj(a -> documents.get(otherKey).contains(featureIndexList.get(a)) ? a : 0)
-//                    .collect(Collectors.toList())
-//                    .stream()
-//                    .parallel()
-//                    .map(v -> v.doubleValue())
-//                    .collect(Collectors.toList());
+            List<Double> v2 = getBinaryFeatureVectorForDocumentClass(documents, featureIndexList, otherKey);
             classMap.put(otherKey, cosineSimilarity(v1, v2));
         });
 
@@ -323,11 +404,54 @@ public class VectorUtil {
         return results;
     }
 
-    private static Map<String, List<Integer>> getFeaturesForAllClasses(GraphDatabaseService db)
+    private static List<Double> getWeightVectorForClass(Map<String, List<LinkedHashMap<String, Object>>> documents, String key, List<Integer> featureIndexList, GraphDatabaseService db) {
+        List<Double> weightVector;
+
+        Transaction tx = db.beginTx();
+        // Get class id
+        Long classId = db.findNodesByLabelAndProperty(DynamicLabel.label("Class"), "name", key).iterator().next().getId();
+
+        // Get weight vector for class
+        List<Long> longs = documents.get(key)
+                .stream()
+                .map(a -> ((Integer)a.get("feature")).longValue())
+                .collect(Collectors.toList());
+
+        weightVector = featureIndexList.stream().map(i -> longs.contains(i.longValue()) ?
+                tfidf(db, i.longValue(), classId) : 0.0)
+                .collect(Collectors.toList());
+        tx.success();
+        tx.close();
+        return weightVector;
+    }
+
+    private static List<Double> getFeatureVectorForDocumentClass(Map<String, List<LinkedHashMap<String, Object>>> documents, List<Integer> featureIndexList, String key) {
+        return featureIndexList.stream().map(i -> documents.get(key).stream()
+                    .anyMatch(a -> a.get("feature")
+                            .equals(i)) ?
+                    ((Integer) documents.get(key).stream()
+                            .filter(a -> a.get("feature")
+                                    .equals(i))
+                            .collect(Collectors.toList())
+                            .get(0)
+                            .get("frequency"))
+                            .doubleValue() : 0.0)
+                    .collect(Collectors.toList());
+    }
+
+    private static List<Double> getBinaryFeatureVectorForDocumentClass(Map<String, List<LinkedHashMap<String, Object>>> documents, List<Integer> featureIndexList, String key) {
+        return featureIndexList.stream().map(i -> documents.get(key).stream()
+                .anyMatch(a -> a.get("feature")
+                        .equals(i)) ?
+                1.0 : 0.0)
+                .collect(Collectors.toList());
+    }
+
+    private static Map<String, List<LinkedHashMap<String, Object>>> getFeaturesForAllClasses(GraphDatabaseService db)
     {
         List<Node> classes = getAllClasses(db);
 
-        Map<String, List<Integer>> featureMap = new HashMap<>();
+        Map<String, List<LinkedHashMap<String, Object>>> featureMap = new HashMap<>();
 
         Transaction tx = db.beginTx();
         for (Node thisClass : classes)
@@ -353,17 +477,74 @@ public class VectorUtil {
         return finalClasses.stream().map(a -> a).collect(Collectors.toList());
     }
 
-    private static List<Integer> getFeaturesForClass(GraphDatabaseService db, Node classNode) {
-        List<Integer> patternIds = new ArrayList<>();
-        for (Node endNodes : db.traversalDescription()
+    private static List<LinkedHashMap<String, Object>> getFeaturesForClass(GraphDatabaseService db, Node classNode) {
+        List<LinkedHashMap<String, Object>> patternIds = new ArrayList<>();
+
+        for (Path p : db.traversalDescription()
                 .depthFirst()
                 .relationships(withName("HAS_CLASS"), Direction.INCOMING)
                 .evaluator(Evaluators.fromDepth(1))
                 .evaluator(Evaluators.toDepth(1))
-                .traverse(classNode)
-                .nodes()) {
-            patternIds.add(((Long)endNodes.getId()).intValue());
+                .traverse(classNode)) {
+
+            LinkedHashMap<String, Object> featureMap = new LinkedHashMap<>();
+
+            if(p.relationships().iterator().hasNext()) {
+                featureMap.put("frequency", p.relationships().iterator().next().getProperty("matches"));
+            }
+            else {
+                featureMap.put("frequency", 0);
+            }
+
+            featureMap.put("feature", ((Long)p.endNode().getId()).intValue());
+
+            patternIds.add(featureMap);
         }
         return patternIds;
+    }
+
+    private static class VsmCacheModel {
+        private GraphDatabaseService db;
+        private Object cfIndex;
+        private Object vsmIndex;
+        private Map<String, List<LinkedHashMap<String, Object>>> documents;
+        private List<Integer> featureIndexList;
+
+        public VsmCacheModel(GraphDatabaseService db) {
+            this.db = db;
+            cfIndex = vectorSpaceModelCache.getIfPresent("CLASS_FEATURE_INDEX");
+            vsmIndex = vectorSpaceModelCache.getIfPresent("GLOBAL_FEATURE_INDEX");
+        }
+
+        public Map<String, List<LinkedHashMap<String, Object>>> getDocuments() {
+            return documents;
+        }
+
+        public List<Integer> getFeatureIndexList() {
+            return featureIndexList;
+        }
+
+        public VsmCacheModel invoke() {
+            if(cfIndex != null)
+            {
+                documents = (Map<String, List<LinkedHashMap<String, Object>>>) cfIndex;
+            }
+            else
+            {
+                documents = VectorUtil.getFeaturesForAllClasses(db);
+                vectorSpaceModelCache.put("CLASS_FEATURE_INDEX", documents);
+            }
+
+            if(vsmIndex != null)
+            {
+                featureIndexList = (List<Integer>) vsmIndex;
+            }
+            else
+            {
+                featureIndexList = VectorUtil.getFeatureIndexList(db);
+                vectorSpaceModelCache.put("GLOBAL_FEATURE_INDEX", featureIndexList);
+            }
+            return this;
+        }
     }
 }

@@ -88,7 +88,8 @@ import static org.neo4j.graphdb.DynamicRelationshipType.withName;
             try {
                 Node startNode = db.getNodeById(start);
                 Node endNode = db.getNodeById(end);
-                startNode.createRelationshipTo(endNode, withName(getRelationshipType()));
+                Relationship rel = startNode.createRelationshipTo(endNode, withName(getRelationshipType()));
+                rel.setProperty("matches", 1);
                 relList.add(end);
                 relList = new HashSet<>(relList).stream().map(n -> n).collect(Collectors.toList());
                 startNode.setProperty(getRelationshipAggregateKey(), relList.size());
@@ -99,6 +100,25 @@ import static org.neo4j.graphdb.DynamicRelationshipType.withName;
                 tx.close();
                 getRelationshipCache().put(start, relList);
             }
+        }
+        else {
+            Node startNode = db.getNodeById(start);
+
+            Relationship rel =IteratorUtil.asCollection(db.traversalDescription()
+                    .depthFirst()
+                    .relationships(withName(getRelationshipType()), Direction.OUTGOING)
+                    .evaluator(Evaluators.fromDepth(1))
+                    .evaluator(Evaluators.toDepth(1))
+                    .traverse(startNode)
+                    .relationships())
+                    .stream()
+                    .filter(a -> a.getEndNode().getId() == end)
+                    .findFirst()
+                    .get();
+
+            Integer matches = (Integer)rel.getProperty("matches");
+
+            rel.setProperty("matches", matches + 1);
         }
     }
 
