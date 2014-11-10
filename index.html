@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
-    <title>Graphify by kbastani</title>
+    <title>Graphify by Graphify</title>
 
     <link rel="stylesheet" href="stylesheets/styles.css">
     <link rel="stylesheet" href="stylesheets/pygment_trac.css">
@@ -18,18 +18,18 @@
         <h1>Graphify</h1>
         <p>Graphify is a Neo4j unmanaged extension used for document and text classification using graph-based hierarchical pattern recognition.</p>
 
-        <p class="view"><a href="https://github.com/kbastani/graphify">View the Project on GitHub <small>kbastani/graphify</small></a></p>
+        <p class="view"><a href="https://github.com/Graphify/graphify">View the Project on GitHub <small>Graphify/graphify</small></a></p>
 
 
         <ul>
-          <li><a href="https://github.com/kbastani/graphify/zipball/master">Download <strong>ZIP File</strong></a></li>
-          <li><a href="https://github.com/kbastani/graphify/tarball/master">Download <strong>TAR Ball</strong></a></li>
-          <li><a href="https://github.com/kbastani/graphify">View On <strong>GitHub</strong></a></li>
+          <li><a href="https://github.com/Graphify/graphify/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/Graphify/graphify/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/Graphify/graphify">View On <strong>GitHub</strong></a></li>
         </ul>
       </header>
       <section>
         <h1>
-<a name="neo4j-text-classification-api" class="anchor" href="#neo4j-text-classification-api"><span class="octicon octicon-link"></span></a>Neo4j Text Classification API</h1>
+<a id="neo4j-text-classification-api" class="anchor" href="#neo4j-text-classification-api" aria-hidden="true"><span class="octicon octicon-link"></span></a>Neo4j Text Classification API</h1>
 
 <p>This is a Neo4j unmanaged extension used for document and text classification.</p>
 
@@ -40,12 +40,12 @@
 <p><img src="http://i.imgur.com/j90qOru.png?2" alt="Classify Unlabeled Documents" title="Classify Unlabeled Documents"></p>
 
 <h1>
-<a name="compiled-extension" class="anchor" href="#compiled-extension"><span class="octicon octicon-link"></span></a>Compiled extension</h1>
+<a id="compiled-extension" class="anchor" href="#compiled-extension" aria-hidden="true"><span class="octicon octicon-link"></span></a>Compiled extension</h1>
 
 <p>The compiled extension is available from the <code>bin</code> directory.</p>
 
 <h1>
-<a name="building-the-extension" class="anchor" href="#building-the-extension"><span class="octicon octicon-link"></span></a>Building the extension</h1>
+<a id="building-the-extension" class="anchor" href="#building-the-extension" aria-hidden="true"><span class="octicon octicon-link"></span></a>Building the extension</h1>
 
 <ol>
 <li>
@@ -63,41 +63,43 @@
 </li>
 <li><p>Start Neo4j server.</p></li>
 <li><p>Query it over HTTP.</p></li>
-</ol><h1>
-<a name="using-it" class="anchor" href="#using-it"><span class="octicon octicon-link"></span></a>Using it</h1>
+</ol>
+
+<h1>
+<a id="using-it" class="anchor" href="#using-it" aria-hidden="true"><span class="octicon octicon-link"></span></a>Using it</h1>
 
 <h4>
-<a name="get-similar-labels" class="anchor" href="#get-similar-labels"><span class="octicon octicon-link"></span></a>Get similar labels:</h4>
+<a id="get-similar-labels" class="anchor" href="#get-similar-labels" aria-hidden="true"><span class="octicon octicon-link"></span></a>Get similar labels:</h4>
 
 <pre><code>curl http://localhost:7474/service/graphify/similar/{label}
 </code></pre>
 
 <h4>
-<a name="train-the-natural-language-recognition-model-on-text-about-document-classification" class="anchor" href="#train-the-natural-language-recognition-model-on-text-about-document-classification"><span class="octicon octicon-link"></span></a>Train the natural language recognition model on text about 'Document classification':</h4>
+<a id="train-the-natural-language-recognition-model-on-text-about-document-classification" class="anchor" href="#train-the-natural-language-recognition-model-on-text-about-document-classification" aria-hidden="true"><span class="octicon octicon-link"></span></a>Train the natural language recognition model on text about 'Document classification':</h4>
 
 <pre><code>curl -H "Content-Type: application/json" -d '{"label": ["Document classification"], "text": ["Documents may be classified according to their subjects or according to other attributes (such as document type, author, printing year etc.). In the rest of this article only subject classification is considered. There are two main philosophies of subject classification of documents: The content based approach and the request based approach."]}' http://localhost:7474/service/graphify/training
 </code></pre>
 
 <h4>
-<a name="classify-an-unlabeled-text" class="anchor" href="#classify-an-unlabeled-text"><span class="octicon octicon-link"></span></a>Classify an unlabeled text:</h4>
+<a id="classify-an-unlabeled-text" class="anchor" href="#classify-an-unlabeled-text" aria-hidden="true"><span class="octicon octicon-link"></span></a>Classify an unlabeled text:</h4>
 
 <pre><code>curl -H "Content-Type: application/json" -d '{"text": "A document is a written or drawn representation of thoughts. Originating from the Latin Documentum meaning lesson - the verb means to teach, and is pronounced similarly, in the past it was usually used as a term for a written proof used as evidence."}' http://localhost:7474/service/graphify/classify
 </code></pre>
 
 <h4>
-<a name="get-a-list-of-the-extracted-semantic-features-matching-a-text" class="anchor" href="#get-a-list-of-the-extracted-semantic-features-matching-a-text"><span class="octicon octicon-link"></span></a>Get a list of the extracted semantic features matching a text:</h4>
+<a id="get-a-list-of-the-extracted-semantic-features-matching-a-text" class="anchor" href="#get-a-list-of-the-extracted-semantic-features-matching-a-text" aria-hidden="true"><span class="octicon octicon-link"></span></a>Get a list of the extracted semantic features matching a text:</h4>
 
 <pre><code>curl -H "Content-Type: application/json" -d '{"text": "A document is a written or drawn representation of thoughts. Originating from the Latin Documentum meaning lesson - the verb means to teach, and is pronounced similarly, in the past it was usually used as a term for a written proof used as evidence."}' http://localhost:7474/service/graphify/extractfeatures
 </code></pre>
 
 <h4>
-<a name="get-a-sorted-list-of-labels-that-are-most-related-to-the-label-document-classification" class="anchor" href="#get-a-sorted-list-of-labels-that-are-most-related-to-the-label-document-classification"><span class="octicon octicon-link"></span></a>Get a sorted list of labels that are most related to the label 'Document classification':</h4>
+<a id="get-a-sorted-list-of-labels-that-are-most-related-to-the-label-document-classification" class="anchor" href="#get-a-sorted-list-of-labels-that-are-most-related-to-the-label-document-classification" aria-hidden="true"><span class="octicon octicon-link"></span></a>Get a sorted list of labels that are most related to the label 'Document classification':</h4>
 
 <pre><code>curl http://localhost:7474/service/graphify/similar/Document%20classification
 </code></pre>
 
 <h5>
-<a name="example-response" class="anchor" href="#example-response"><span class="octicon octicon-link"></span></a>Example response:</h5>
+<a id="example-response" class="anchor" href="#example-response" aria-hidden="true"><span class="octicon octicon-link"></span></a>Example response:</h5>
 
 <pre><code>{
     "classes": [
@@ -126,7 +128,7 @@
 </code></pre>
       </section>
       <footer>
-        <p>This project is maintained by <a href="https://github.com/kbastani">kbastani</a></p>
+        <p>This project is maintained by <a href="https://github.com/Graphify">Graphify</a></p>
         <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
       </footer>
     </div>
