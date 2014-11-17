@@ -1,7 +1,7 @@
 Graphify
 ==========================
 
-![Travis Build Status](https://travis-ci.org/kbastani/graphify.svg?branch=master "Travis Build Status")
+![Travis Build Status](https://travis-ci.org/Graphify/graphify.svg?branch=master "Travis Build Status")
 
 This is a Neo4j unmanaged extension used for document and text classification.
 
