@@ -11,6 +11,13 @@ This is a Neo4j unmanaged extension used for document and text classification.
 
 ![Classify Unlabeled Documents](http://i.imgur.com/j90qOru.png?2 "Classify Unlabeled Documents")
 
+Classification Accuracy
+--------
+- Scores `~90%` accuracy on Cornell Movie Review dataset using logistic regression.
+  - http://nbviewer.ipython.org/github/kbastani/sentiment-analysis-movie-reviews/blob/master/Cornell%20Moview%20Review%20Dataset%20-%20Sentiment%20Analysis.ipynb
+- Scores `~80%` accuracy on Stanford Large Movie Review dataset using logistic regression.
+  - http://nbviewer.ipython.org/github/kbastani/sentiment-analysis-movie-reviews/blob/master/Stanford%20Large%20Movie%20Review%20Dataset%20-%20Sentiment%20Analysis.ipynb
+
 Compiled extension
 ==========================
 
