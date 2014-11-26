@@ -317,6 +317,57 @@ public class VectorUtil {
         return vectorMap;
     }
 
+    public static List<Integer> getFeatureVectorForInput(GraphDatabaseService db, GraphManager graphManager, String input)
+    {
+        List<Integer> featureIndexList;
+
+        VsmCacheModel vsmCacheModel = new VsmCacheModel(db).invoke();
+        featureIndexList = vsmCacheModel.getFeatureIndexList();
+
+        List<Integer> features = getFeatureVector(db, graphManager, input, featureIndexList)
+                .stream()
+                .map(a -> a.intValue())
+                .collect(Collectors.toList());
+
+        return features;
+    }
+
+    public static List<Double> getWeightedVectorForClass(String key, List<Integer> binaryFeatureVector, GraphDatabaseService db) {
+        List<Double> weightVector = new ArrayList<>();
+
+        VsmCacheModel vsmCacheModel = new VsmCacheModel(db).invoke();
+        Map<String, List<LinkedHashMap<String, Object>>> documents = vsmCacheModel.getDocuments();
+
+        Transaction tx = db.beginTx();
+        // Get class id
+        Long classId = db.findNodesByLabelAndProperty(DynamicLabel.label("Class"), "name", key).iterator().next().getId();
+
+        // Get weight vector for class
+        List<Long> longs = documents.get(key)
+                .stream()
+                .map(a -> ((Integer)a.get("feature")).longValue())
+                .collect(Collectors.toList());
+
+        for (Integer i = 0; i < binaryFeatureVector.size(); i++) {
+            if(binaryFeatureVector.get(i) == 1) {
+                if(longs.contains(i.longValue()))
+                {
+                    weightVector.add(tfidf(db, i.longValue(), classId));
+                }
+                else {
+                    weightVector.add(1.0);
+                }
+            }
+            else {
+                weightVector.add(0.0);
+            }
+        }
+
+        tx.success();
+        tx.close();
+        return weightVector;
+    }
+
     public static Map<String, List<LinkedHashMap<String, Object>>> similarDocumentMapForVector(GraphDatabaseService db, GraphManager graphManager, String input) {
         Map<String, List<LinkedHashMap<String, Object>>> documents;
         Map<String, List<LinkedHashMap<String, Object>>> results = new HashMap<>();

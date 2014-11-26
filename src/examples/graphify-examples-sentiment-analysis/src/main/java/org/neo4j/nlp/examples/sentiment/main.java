@@ -38,8 +38,8 @@ class main {
 
     final public static Charset ENCODING = StandardCharsets.UTF_8;
 
-    final public static String negativeSentimentDirectory = "src/main/resources/txt_sentoken/neg";
-    final public static String positiveSentimentDirectory = "src/main/resources/txt_sentoken/pos";
+    final public static String negativeSentimentDirectory = "/Users/kennybastani/Downloads/aclImdb/train/neg";
+    final public static String positiveSentimentDirectory = "/Users/kennybastani/Downloads/aclImdb/train/pos";
 
 
     public static void main(String[] args) throws IOException {
