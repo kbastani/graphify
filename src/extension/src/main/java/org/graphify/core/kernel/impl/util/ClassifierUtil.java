@@ -2,9 +2,14 @@ package org.graphify.core.kernel.impl.util;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.SparkContext;
+import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.function.Function;
+import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.mllib.classification.LogisticRegressionModel;
 import org.apache.spark.mllib.classification.LogisticRegressionWithSGD;
+import org.apache.spark.mllib.classification.NaiveBayes;
+import org.apache.spark.mllib.classification.NaiveBayesModel;
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics;
 import org.apache.spark.mllib.linalg.Vectors;
 import org.apache.spark.mllib.regression.LabeledPoint;
@@ -47,6 +52,38 @@ public class ClassifierUtil {
         double auROC = metrics.areaUnderROC();
 
         System.out.println("Area under ROC = " + auROC);
+
+        return model;
+    }
+
+    public static NaiveBayesModel trainNaiveBayesModel(String path) {
+
+        SparkContext sc = getSparkContext();
+        JavaRDD data = sc.textFile(path, 1).toJavaRDD();
+        JavaRDD<LabeledPoint> parsedData = getLabeledPointJavaRDD(data);
+
+        // Split initial RDD into two... [60% training data, 40% testing data].
+        JavaRDD<LabeledPoint> training = parsedData.sample(false, 0.5, 11L);
+        training.cache();
+        JavaRDD<LabeledPoint> test = parsedData.subtract(training);
+
+        final NaiveBayesModel model = NaiveBayes.train(training.rdd(), 1.0);
+
+        // Compute raw scores on the test set.
+        JavaPairRDD<Double, Double> predictionAndLabel =
+                test.mapToPair(new PairFunction<LabeledPoint, Double, Double>() {
+                    @Override public Tuple2<Double, Double> call(LabeledPoint p) {
+                        return new Tuple2<Double, Double>(model.predict(p.features()), p.label());
+                    }
+                });
+
+        double accuracy = 1.0 * predictionAndLabel.filter(new Function<Tuple2<Double, Double>, Boolean>() {
+            @Override public Boolean call(Tuple2<Double, Double> pl) {
+                return pl._1().equals(pl._2());
+            }
+        }).count() / test.count();
+
+        //System.out.println(accuracy);
 
         return model;
     }

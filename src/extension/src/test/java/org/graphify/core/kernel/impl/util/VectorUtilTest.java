@@ -33,7 +33,7 @@ public class VectorUtilTest
 {
     final public static int TEST_COUNT = 100;
     final public static int TRAIN_COUNT = 100;
-    final public static int SAMPLE_SIZE = 1000;
+    final public static int SAMPLE_SIZE = 100;
 
     final public static Charset ENCODING = StandardCharsets.UTF_8;
 

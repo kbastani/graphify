@@ -1,6 +1,6 @@
 *.class
 
-X_train.txt
+*_train.txt
 
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/

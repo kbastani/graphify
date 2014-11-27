@@ -33,6 +33,12 @@ public class LabeledText {
     @XmlElement(required=false)
     private int focus;
 
+    public LabeledText(String[] text, String[] label, int focus) {
+        this.text = text;
+        this.label = label;
+        this.focus = focus;
+    }
+
     public void setLabel(String[] label) {
         this.label = label;
     }

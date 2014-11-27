@@ -14,6 +14,7 @@ package org.graphify.core.api.selection;
  * the License.
  */
 
+import org.graphify.core.kernel.impl.util.VectorUtil;
 import org.graphify.core.kernel.models.FeatureTargetResponse;
 import org.graphify.core.kernel.models.SelectedFeatures;
 import org.neo4j.graphdb.DynamicLabel;
@@ -43,12 +44,22 @@ public class FeatureSelector {
         // Validate the model
         validateModel(selectedFeatures, db);
 
+        // Cache the global feature index
+        List<Integer> featureIndexList = VectorUtil.getFeatureIndexList(db);
+
         // Create a new target
         Transaction tx = db.beginTx();
 
         Node target =  db.createNode(DynamicLabel.label("Target"));
 
+        // Cache the labels at the time the target is created
         target.setProperty("labels", selectedFeatures.getLabels().toArray(new String[selectedFeatures.getLabels().size()]));
+
+        // Cache the global feature index at the time the target is created or updated
+        target.setProperty("featureIndex", featureIndexList.toArray(new Integer[featureIndexList.size()]));
+
+        // Assign internal id as a property
+        target.setProperty("id", target.getId());
 
         // Get all label classes
         List<Node> labelNodes = selectedFeatures.getLabels().stream()
@@ -64,11 +75,11 @@ public class FeatureSelector {
         tx.success();
         tx.close();
 
-        return new FeatureTargetResponse(featureTargetId);
+        return new FeatureTargetResponse(featureTargetId.intValue());
     }
 
     /**
-     * Validates th supplied SelectedFeatures model for creating a feature target.
+     * Validates the supplied SelectedFeatures model for creating a feature target.
      * @param selectedFeatures The model to validate.
      * @param db The graph database service object to connect to the data store.
      */

@@ -2,14 +2,11 @@ package org.graphify.core.kernel.impl.util;
 
 import com.google.common.collect.Lists;
 import com.google.gson.Gson;
+import org.apache.spark.mllib.classification.ClassificationModel;
 import org.codehaus.jackson.map.ObjectMapper;
-import org.jetbrains.annotations.NotNull;
-import org.junit.Assert;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.neo4j.graphdb.GraphDatabaseService;
-import org.neo4j.graphdb.Node;
-import org.neo4j.graphdb.Transaction;
+import org.graphify.core.api.classification.ModelClassifier;
+import org.graphify.core.api.selection.FeatureSelector;
+import org.graphify.core.api.training.ModelBuilder;
 import org.graphify.core.kernel.helpers.GraphManager;
 import org.graphify.core.kernel.impl.cache.ClassRelationshipCache;
 import org.graphify.core.kernel.impl.cache.PatternRelationshipCache;
@@ -17,7 +14,17 @@ import org.graphify.core.kernel.impl.manager.ClassNodeManager;
 import org.graphify.core.kernel.impl.manager.DataNodeManager;
 import org.graphify.core.kernel.impl.manager.DataRelationshipManager;
 import org.graphify.core.kernel.impl.manager.NodeManager;
+import org.graphify.core.kernel.models.FeatureTargetResponse;
 import org.graphify.core.kernel.models.PatternCount;
+import org.graphify.core.kernel.models.SelectedFeatures;
+import org.graphify.core.kernel.models.TrainModelRequest;
+import org.jetbrains.annotations.NotNull;
+import org.junit.Assert;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.neo4j.graphdb.GraphDatabaseService;
+import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Transaction;
 import org.neo4j.test.TestGraphDatabaseFactory;
 
 import java.io.IOException;
@@ -279,9 +286,38 @@ public class GraphManagerTest {
 
         VectorUtil.vectorSpaceModelCache.invalidateAll();
 
+        FeatureTargetResponse targetFeatureResponse = FeatureSelector.createFeatureTarget(new SelectedFeatures(new ArrayList<String>() {
+            {
+                add("sentence");
+                add("document");
+                add("paragraph");
+                add("ensemble");
+            }
+        }, "multi"), db);
+
+        ClassificationModel model = ModelBuilder.trainLearningModel(new TrainModelRequest(.5, targetFeatureResponse.getTargetId()), db);
+
+        //Label: sentence, Id: 0
+        System.out.println(ModelClassifier.classifyText(model, "The third word in a sentence is interesting", db, targetFeatureResponse.getTargetId()));
+
+        //Label: paragraph, Id: 1
+        System.out.println(ModelClassifier.classifyText(model, "The sixteenth word in a paragraph is interesting", db, targetFeatureResponse.getTargetId()));
+
+        //Label: document, Id: 2
+        System.out.println(ModelClassifier.classifyText(model, "The eighth word in a document is interesting", db, targetFeatureResponse.getTargetId()));
+
+        //Label: ensemble, Id: 3
+        System.out.println(ModelClassifier.classifyText(model, "The seventh note in a word but is an ensemble is musical", db, targetFeatureResponse.getTargetId()));
+
+
+        // Paragraph
         System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, graphManager, input3)));
+        System.out.println(new Gson().toJson(VectorUtil.similarDataMapForVector(db, input3, targetFeatureResponse.getTargetId())));
+
+        // Sentence
         System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, graphManager, input1)));
-        System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForClass(db, "paragraph")));
+        System.out.println(new Gson().toJson(VectorUtil.similarDataMapForVector(db, input1, targetFeatureResponse.getTargetId())));
+        //System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForClass(db, "paragraph")));
 
     }
 

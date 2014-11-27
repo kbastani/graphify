@@ -24,7 +24,7 @@ import java.util.List;
 /**
  * This class is used to cache relationships that exist in a pattern recognition hierarchy.
  */
-public class ClassRelationshipCache extends RelationshipCache {
+public class DataRelationshipCache extends RelationshipCache {
 
     public static final Cache<Long, List<Long>> relationshipCache = CacheBuilder.newBuilder().maximumSize(20000000).build();
     private final String relationshipType;
@@ -32,12 +32,12 @@ public class ClassRelationshipCache extends RelationshipCache {
     private final String startNodeKey;
     private final Manager nodeManager;
 
-    public ClassRelationshipCache()
+    public DataRelationshipCache()
     {
-        this.nodeManager = LearningManager.GRAPH_MANAGER;
-        this.relationshipType = "HAS_CLASS";
+        this.nodeManager = LearningManager.CLASS_MANAGER;
+        this.relationshipType = "HAS_DATA";
         this.relationshipAggregateKey = "classes";
-        this.startNodeKey = "pattern";
+        this.startNodeKey = "name";
     }
 
     @Override
@@ -57,7 +57,7 @@ public class ClassRelationshipCache extends RelationshipCache {
 
     @Override
     protected Manager getNodeManager() {
-        return LearningManager.GRAPH_MANAGER;
+        return LearningManager.CLASS_MANAGER;
     }
 
     @Override

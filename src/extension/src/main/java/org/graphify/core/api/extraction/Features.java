@@ -29,14 +29,16 @@ import java.util.Arrays;
  */
 public class Features {
 
-    private static final GraphManager GRAPH_MANAGER  = new GraphManager("Pattern");
-
     public static void extractFeatures(GraphDatabaseService db, LabeledText labeledText) {
         // Add first matcher
         for (int i = 0; i < labeledText.getFocus(); i++) {
             Transaction tx = db.beginTx();
             getRootPatternNode(db);
-            LearningManager.trainInput(Arrays.asList(labeledText.getText()), Arrays.asList(labeledText.getLabel()), GRAPH_MANAGER, db);
+            tx.success();
+            tx.close();
+
+            tx = db.beginTx();
+            LearningManager.trainInput(Arrays.asList(labeledText.getText()), Arrays.asList(labeledText.getLabel()), LearningManager.GRAPH_MANAGER, db);
             tx.success();
             tx.close();
         }
@@ -49,7 +51,7 @@ public class Features {
      */
     private static Node getRootPatternNode(GraphDatabaseService db) {
         Node patternNode;
-        patternNode = new NodeManager().getOrCreateNode(GRAPH_MANAGER, GraphManager.ROOT_TEMPLATE, db);
+        patternNode = new NodeManager().getOrCreateNode(LearningManager.GRAPH_MANAGER, GraphManager.ROOT_TEMPLATE, db);
         if(!patternNode.hasProperty("matches")) {
             patternNode.setProperty("matches", 0);
             patternNode.setProperty("threshold", GraphManager.MIN_THRESHOLD);

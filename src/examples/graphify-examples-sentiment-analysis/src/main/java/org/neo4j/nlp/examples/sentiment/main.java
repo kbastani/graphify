@@ -38,18 +38,34 @@ class main {
 
     final public static Charset ENCODING = StandardCharsets.UTF_8;
 
-    final public static String negativeSentimentDirectory = "/Users/kennybastani/Downloads/aclImdb/train/neg";
-    final public static String positiveSentimentDirectory = "/Users/kennybastani/Downloads/aclImdb/train/pos";
+    final public static String negativeSentimentDirectory = "src/main/resources/txt_sentoken/neg";
+    final public static String positiveSentimentDirectory = "src/main/resources/txt_sentoken/pos";
 
 
     public static void main(String[] args) throws IOException {
         train();
-        System.out.println(test());
+
+        // Build target
+        String payload = "{\n" +
+                "  \"labels\":[\n" +
+                "    \"positive\",\n" +
+                "    \"negative\"\n" +
+                "  ],\n" +
+                "  \"type\": \"binary\"\n" +
+                "}";
+
+        String response = executePost("http://localhost:7474/service/graphify/targets/create", payload);
+
+        // Deserialize
+        Gson gson = new Gson();
+        FeatureTargetResponse featureTargetResponse = gson.fromJson(response, FeatureTargetResponse.class);
+
+        System.out.println(test(featureTargetResponse.getTargetId()));
     }
 
     final static Integer trainCount = 600;
 
-    private static Map<String, Double> test() throws IOException {
+    private static Map<String, Double> test(Integer targetId) throws IOException {
         List<String> negativeText = readLargerTextFile(negativeSentimentDirectory);
 
         Integer negativeError = 0;
@@ -57,14 +73,14 @@ class main {
 
         for(String text : negativeText.stream().skip(trainCount).limit(trainCount).collect(Collectors.toList()))
         {
-            negativeError += testOnText(text, "negative") ? 0 : 1;
+            negativeError += testOnText(text, "negative", targetId) ? 0 : 1;
         }
 
         List<String> positiveText = readLargerTextFile(positiveSentimentDirectory);
 
         for(String text : positiveText.stream().skip(trainCount).limit(trainCount).collect(Collectors.toList()))
         {
-            positiveError += testOnText(text, "positive") ? 0 : 1;
+            positiveError += testOnText(text, "positive", targetId) ? 0 : 1;
         }
 
         Map<String, Double> errorMap = new HashMap<String, Double>();
@@ -114,13 +130,14 @@ class main {
 
         String jsonPayload = new Gson().toJson(jsonParam);
 
-        System.out.println(executePost("http://localhost:7474/service/graphify/training", jsonPayload));
+        System.out.println(executePost("http://localhost:7474/service/graphify/features/extract", jsonPayload));
     }
 
-    private static boolean testOnText(String text, String label) {
+    private static boolean testOnText(String text, String label, Integer targetId) {
 
         JsonObject jsonParam = new JsonObject();
         jsonParam.add("text", new JsonPrimitive(text));
+        jsonParam.add("targetId", new JsonPrimitive(targetId));
 
         String jsonPayload = new Gson().toJson(jsonParam);
 

@@ -70,7 +70,7 @@ public class GraphManager extends Manager {
     {
 
         List<Long> getLongs = patternRelationshipCache
-                .getRelationships(nodeId, db, this);
+                .getRelationships(nodeId, db);
 
         List<String> patterns = new ArrayList<>();
 

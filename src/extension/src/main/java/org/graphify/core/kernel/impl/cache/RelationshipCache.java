@@ -1,11 +1,11 @@
 package org.graphify.core.kernel.impl.cache;
 
 import com.google.common.cache.Cache;
+import org.graphify.core.kernel.abstractions.Manager;
+import org.graphify.core.kernel.impl.manager.NodeManager;
 import org.neo4j.graphdb.*;
 import org.neo4j.graphdb.traversal.Evaluators;
 import org.neo4j.helpers.collection.IteratorUtil;
-import org.graphify.core.kernel.helpers.GraphManager;
-import org.graphify.core.kernel.impl.manager.NodeManager;
 
 import java.util.HashSet;
 import java.util.List;
@@ -27,20 +27,22 @@ import static org.neo4j.graphdb.DynamicRelationshipType.withName;
 * the License.
 */public abstract class RelationshipCache {
 
-    public List<Long> getRelationships(Long start, GraphDatabaseService db, GraphManager graphManager)
+    public List<Long> getRelationships(Long start, GraphDatabaseService db)
     {
-        return getLongs(start, db, graphManager);
+        return getLongs(start, db);
     }
 
-    private List<Long> getLongs(Long start, GraphDatabaseService db, GraphManager graphManager) {
+    private List<Long> getLongs(Long start, GraphDatabaseService db) {
         List<Long> relList;
 
         Cache<Long, List<Long>> relCache = getRelationshipCache();
         relList = relCache.getIfPresent(start);
 
         NodeManager nodeManager = new NodeManager();
-        String pattern = (String)nodeManager.getNodeAsMap(start,db).get("pattern");
-        Node startNode = graphManager.getOrCreateNode(pattern, db);
+
+        // TODO: Generify this method
+        String key = (String)nodeManager.getNodeAsMap(start,db).get(getStartNodeKey());
+        Node startNode = getNodeManager().getOrCreateNode(key, db);
 
         if(relList == null)
             relList = getLongs(start, db, null, startNode);
@@ -79,9 +81,9 @@ import static org.neo4j.graphdb.DynamicRelationshipType.withName;
         return relList;
     }
 
-    public void getOrCreateRelationship(Long start, Long end, GraphDatabaseService db, GraphManager graphManager) {
+    public void getOrCreateRelationship(Long start, Long end, GraphDatabaseService db) {
 
-        List<Long> relList = getLongs(start, db, graphManager);
+        List<Long> relList = getLongs(start, db);
 
         if (!relList.contains(end)) {
             Transaction tx = db.beginTx();
@@ -125,4 +127,6 @@ import static org.neo4j.graphdb.DynamicRelationshipType.withName;
     protected abstract Cache<Long, List<Long>> getRelationshipCache();
     protected abstract String getRelationshipAggregateKey();
     protected abstract String getRelationshipType();
+    protected abstract Manager getNodeManager();
+    protected abstract String getStartNodeKey();
 }

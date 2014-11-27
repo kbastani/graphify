@@ -4,14 +4,16 @@ import com.google.gson.Gson;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.graphify.core.api.extraction.Features;
 import org.graphify.core.api.selection.FeatureSelector;
+import org.graphify.core.api.training.ModelBuilder;
 import org.graphify.core.kernel.helpers.GraphManager;
 import org.graphify.core.kernel.impl.manager.NodeManager;
+import org.graphify.core.kernel.impl.util.LearningManager;
 import org.graphify.core.kernel.impl.util.VectorUtil;
-import org.graphify.core.kernel.models.FeatureTargetResponse;
-import org.graphify.core.kernel.models.LabeledText;
-import org.graphify.core.kernel.models.SelectedFeatures;
+import org.graphify.core.kernel.models.*;
+import org.neo4j.graphdb.DynamicLabel;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Transaction;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.Context;
@@ -30,7 +32,6 @@ import java.util.*;
 public class GraphifyService {
 
     private static final ObjectMapper objectMapper  = new ObjectMapper();
-    private static final GraphManager GRAPH_MANAGER  = new GraphManager("Pattern");
 
     public GraphifyService(@Context GraphDatabaseService database)
     {
@@ -48,7 +49,7 @@ public class GraphifyService {
     @POST
       @Path("/features/extract")
       @Produces(MediaType.APPLICATION_JSON)
-      public Response training(String body, @Context GraphDatabaseService db) throws IOException {
+      public Response extractFeatures(String body, @Context GraphDatabaseService db) throws IOException {
 
         HashMap<String, Object> input;
         try {
@@ -122,6 +123,38 @@ public class GraphifyService {
                 .build();
     }
 
+    @POST
+    @Path("/models/train")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response trainModel(String body, @Context GraphDatabaseService db) throws IOException {
+        TrainModelRequest trainModelRequest;
+
+        // Deserialize the request body
+        try {
+            trainModelRequest = objectMapper.readValue(body, TrainModelRequest.class);
+        } catch (Exception e) {
+            return Response.status(500).entity("{\"error\":\"" + Arrays.toString(e.getStackTrace()) + "\"}").build();
+        }
+
+        TrainModelResponse trainModelResponse = new TrainModelResponse();
+
+        try {
+            // Create a feature target
+
+
+        } catch (IllegalArgumentException e) {
+            return Response.status(500).entity("{\"error\":\"" + Arrays.toString(e.getStackTrace()) + "\"}").build();
+        }
+
+        Gson gson = new Gson();
+        String response = gson.toJson(trainModelResponse);
+
+        return Response.ok()
+                .entity(response)
+                .type(MediaType.APPLICATION_JSON)
+                .build();
+    }
+
     /**
      * Classify a body of text using the training model stored in the graph database.
      * @param body The JSON model that binds to the LabeledText class model.
@@ -139,6 +172,7 @@ public class GraphifyService {
             input = objectMapper.readValue(body, HashMap.class);
 
             String text;
+            Integer targetId;
 
             if(input.containsKey("text")) {
                 text = ((String) input.get("text"));
@@ -148,8 +182,35 @@ public class GraphifyService {
                 throw new Exception("Error parsing JSON");
             }
 
+            if(input.containsKey("targetId")) {
+                targetId = ((Integer)input.get("targetId"));
+            }
+            else
+            {
+                throw new Exception("Error parsing JSON");
+            }
+
+            // Select feature vector from the target
+            Transaction tx = db.beginTx();
+
+            // Select target node with ID
+            Node targetNode = db.findNodesByLabelAndProperty(DynamicLabel.label("Target"), "id", targetId)
+                    .iterator()
+                    .next();
+
+            Boolean hasDataSize = targetNode.hasProperty("dataSize");
+
+            tx.success();
+            tx.close();
+
+            if(!hasDataSize) {
+                // This won't work because Spark doesn't embed into a Neo4j extension
+                ModelBuilder.trainLearningModel(new TrainModelRequest(.5, targetId), db);
+            }
+
+
             // This method trains a model on a supplied label and text content
-            String result = new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, GRAPH_MANAGER, cleanText(text)));
+            String result = new Gson().toJson(VectorUtil.similarDataMapForVector(db, cleanText(text), targetId));
 
             return Response.ok()
                     .entity(result)
@@ -179,7 +240,7 @@ public class GraphifyService {
             {
                 throw new Exception("Error parsing JSON");
             }
-            List<LinkedHashMap<String, Object>> phrases = VectorUtil.getPhrases(db, cleanText(text), GRAPH_MANAGER);
+            List<LinkedHashMap<String, Object>> phrases = VectorUtil.getPhrases(db, cleanText(text), LearningManager.GRAPH_MANAGER);
 
 
             return Response.ok()
@@ -239,7 +300,7 @@ public class GraphifyService {
      */
     private static Node getRootPatternNode(GraphDatabaseService db) {
         Node patternNode;
-        patternNode = new NodeManager().getOrCreateNode(GRAPH_MANAGER, GraphManager.ROOT_TEMPLATE, db);
+        patternNode = new NodeManager().getOrCreateNode(LearningManager.GRAPH_MANAGER, GraphManager.ROOT_TEMPLATE, db);
         if(!patternNode.hasProperty("matches")) {
             patternNode.setProperty("matches", 0);
             patternNode.setProperty("threshold", GraphManager.MIN_THRESHOLD);

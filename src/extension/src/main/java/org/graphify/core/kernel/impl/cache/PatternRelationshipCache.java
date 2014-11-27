@@ -16,6 +16,8 @@ package org.graphify.core.kernel.impl.cache;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import org.graphify.core.kernel.abstractions.Manager;
+import org.graphify.core.kernel.impl.util.LearningManager;
 
 import java.util.List;
 
@@ -27,11 +29,15 @@ public class PatternRelationshipCache extends RelationshipCache {
     public static final Cache<Long, List<Long>> relationshipCache = CacheBuilder.newBuilder().maximumSize(20000000).build();
     private final String relationshipType;
     private final String relationshipAggregateKey;
+    private final String startNodeKey;
+    private final Manager nodeManager;
 
     public PatternRelationshipCache()
     {
+        this.nodeManager = LearningManager.GRAPH_MANAGER;
         this.relationshipType = "NEXT";
         this.relationshipAggregateKey = "children";
+        this.startNodeKey = "pattern";
     }
 
     @Override
@@ -47,5 +53,15 @@ public class PatternRelationshipCache extends RelationshipCache {
     @Override
     protected String getRelationshipType() {
         return relationshipType;
+    }
+
+    @Override
+    protected Manager getNodeManager() {
+        return LearningManager.GRAPH_MANAGER;
+    }
+
+    @Override
+    public String getStartNodeKey() {
+        return startNodeKey;
     }
 }

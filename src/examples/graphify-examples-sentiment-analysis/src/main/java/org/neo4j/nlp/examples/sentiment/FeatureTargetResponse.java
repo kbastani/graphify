@@ -1,4 +1,4 @@
-package org.graphify.core.kernel.models;
+package org.neo4j.nlp.examples.sentiment;
 
 /**
  * Copyright (C) 2014 Kenny Bastani

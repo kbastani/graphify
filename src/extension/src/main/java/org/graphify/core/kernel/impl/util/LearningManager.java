@@ -1,16 +1,17 @@
 package org.graphify.core.kernel.impl.util;
 
-import org.neo4j.graphdb.GraphDatabaseService;
-import org.neo4j.graphdb.Node;
-import org.neo4j.graphdb.Transaction;
 import org.graphify.core.kernel.helpers.GraphManager;
 import org.graphify.core.kernel.impl.cache.ClassRelationshipCache;
+import org.graphify.core.kernel.impl.cache.DataRelationshipCache;
 import org.graphify.core.kernel.impl.cache.PatternRelationshipCache;
 import org.graphify.core.kernel.impl.manager.ClassNodeManager;
 import org.graphify.core.kernel.impl.manager.DataNodeManager;
 import org.graphify.core.kernel.impl.manager.DataRelationshipManager;
 import org.graphify.core.kernel.impl.manager.NodeManager;
 import org.graphify.core.kernel.models.PatternCount;
+import org.neo4j.graphdb.GraphDatabaseService;
+import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Transaction;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -34,9 +35,11 @@ public class LearningManager {
 
     private static final DataRelationshipManager dataRelationshipManager = new DataRelationshipManager();
     private static final ClassRelationshipCache classRelationshipCache = new ClassRelationshipCache();
+    private static final DataRelationshipCache dataRelationshipCache = new DataRelationshipCache();
     private static final PatternRelationshipCache patternRelationshipCache = new PatternRelationshipCache();
-    private static final DataNodeManager dataNodeManager = new DataNodeManager();
-    private static final ClassNodeManager classNodeManager = new ClassNodeManager();
+    public static final DataNodeManager DATA_MANAGER = new DataNodeManager();
+    public static final ClassNodeManager CLASS_MANAGER = new ClassNodeManager();
+    public static final GraphManager GRAPH_MANAGER = new GraphManager("Pattern");
     private static final NodeManager nodeManager = new NodeManager();
 
     public static void trainInput(List<String> inputs, List<String> labels, GraphManager graphManager, GraphDatabaseService db)
@@ -49,7 +52,7 @@ public class LearningManager {
         // Get or create label nodes and append the ID to the label node list
         labelNodeIds.addAll(labels
                 .stream()
-                .map(label -> nodeManager.getOrCreateNode(classNodeManager, label, db)
+                .map(label -> nodeManager.getOrCreateNode(CLASS_MANAGER, label, db)
                         .getId())
                 .collect(Collectors.toList()));
 
@@ -58,7 +61,7 @@ public class LearningManager {
         {
             Transaction tx = db.beginTx();
             // Get data node
-            Long dataNodeId = nodeManager.getOrCreateNode(dataNodeManager, input, db).getId();
+            Long dataNodeId = nodeManager.getOrCreateNode(DATA_MANAGER, input, db).getId();
             nodeManager.setNodeProperty(dataNodeId, "label", labels.toArray(new String[labels.size()]), db);
 
             Map<Long, Integer> patternMatchers = PatternMatcher.match(GraphManager.ROOT_TEMPLATE, input, db, graphManager);
@@ -79,14 +82,16 @@ public class LearningManager {
 
 
                 // Set property
-                nodeManager.setNodeProperty(nodeId, "matches", matchCount + patternMatchers.get(nodeId), db);
+                if(patternMatchers.get(nodeId) != null)
+                    nodeManager.setNodeProperty(nodeId, "matches", matchCount + patternMatchers.get(nodeId), db);
 
                 // Get or create data relationship
                 dataRelationshipManager.getOrCreateNode(nodeId, dataNodeId, db);
 
                 for (Long labelId : labelNodeIds) {
                     // Get or create class relationship
-                    classRelationshipCache.getOrCreateRelationship(nodeId, labelId, db, graphManager);
+                    classRelationshipCache.getOrCreateRelationship(nodeId, labelId, db);
+                    dataRelationshipCache.getOrCreateRelationship(labelId, dataNodeId, db);
                 }
 
                 // Check if the match count has exceeded the threshold
@@ -156,7 +161,7 @@ public class LearningManager {
                     }
 
                     if (GraphManager.edgeCache.getIfPresent(currentNode.get("id") + "->" + (int) leafNode.getId()) == null) {
-                        patternRelationshipCache.getOrCreateRelationship((Long) currentNode.get("id"), leafNode.getId(), db, graphManager);
+                        patternRelationshipCache.getOrCreateRelationship((Long) currentNode.get("id"), leafNode.getId(), db);
                     }
 
                     Long leafNodeId = leafNode.getId();
@@ -169,8 +174,8 @@ public class LearningManager {
                     {
                         String[] dataLabels = (String[]) dn.get("label");
                         for (String labelName : dataLabels) {
-                            Node labelNode = nodeManager.getOrCreateNode(classNodeManager, labelName, db);
-                            classRelationshipCache.getOrCreateRelationship(leafNode.getId(), labelNode.getId(), db, graphManager);
+                            Node labelNode = nodeManager.getOrCreateNode(CLASS_MANAGER, labelName, db);
+                            classRelationshipCache.getOrCreateRelationship(leafNode.getId(), labelNode.getId(), db);
                         }
                         dataRelationshipManager.getOrCreateNode(leafNode.getId(), (Long) dn.get("id"), db);
                     });

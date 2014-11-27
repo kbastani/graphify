@@ -13,27 +13,31 @@ package org.graphify.core.kernel.models;
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-public class FeatureTargetResponse {
-    private Integer targetId;
+public class TrainModelResponse {
+    private Integer modelId;
+    private Double accuracy;
 
-    public FeatureTargetResponse() {
-
+    public TrainModelResponse() {
     }
 
-    public FeatureTargetResponse(Integer targetId) {
-        this.targetId = targetId;
+    public TrainModelResponse(Integer modelId, Double accuracy) {
+        this.modelId = modelId;
+        this.accuracy = accuracy;
     }
 
-    public Integer getTargetId() {
-        return targetId;
+    public Integer getModelId() {
+        return modelId;
     }
 
-    public void setTargetId(Integer targetId) {
-        this.targetId = targetId;
+    public void setModelId(Integer modelId) {
+        this.modelId = modelId;
     }
 
-    @Override
-    public String toString() {
-        return "[targetId=" + targetId + "]";
+    public Double getAccuracy() {
+        return accuracy;
+    }
+
+    public void setAccuracy(Double accuracy) {
+        this.accuracy = accuracy;
     }
 }

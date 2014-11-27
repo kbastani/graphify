@@ -1,24 +1,19 @@
-package org.graphify.core.api.selection;
+package org.graphify.core.api.extraction;
 
 import junit.framework.TestCase;
-import org.graphify.core.api.extraction.Features;
 import org.graphify.core.kernel.models.LabeledText;
-import org.graphify.core.kernel.models.SelectedFeatures;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.test.TestGraphDatabaseFactory;
 
-import java.util.ArrayList;
-
-public class FeatureSelectorTest extends TestCase {
+public class FeaturesTest extends TestCase {
 
     private static GraphDatabaseService setUpDb()
     {
         return new TestGraphDatabaseFactory().newImpermanentDatabaseBuilder().newGraphDatabase();
     }
 
-    public void testCreateFeatureTarget() throws Exception {
+    public void testExtractFeatures() throws Exception {
         GraphDatabaseService db = setUpDb();
-
         LabeledText labeledText = new LabeledText();
         labeledText.setLabel(new String[] { "positive" });
         labeledText.setText(new String[] {
@@ -35,28 +30,5 @@ public class FeatureSelectorTest extends TestCase {
         });
         labeledText.setFocus(5);
         Features.extractFeatures(db, labeledText);
-
-        labeledText.setLabel(new String[] { "negative"});
-        labeledText.setText(new String[] {
-                "When you see good actors in a project like this, you wonder if they signed up as an alternative to canyoneering.",
-                "An empty-headed horror movie with nothing to recommend it",
-                "Star Wars is a junkyard of cinematic gimcracks not unlike the Jawas' heap of purloined, discarded, barely functioning droids",
-                "A theme park ride masquerading as master's thesis",
-                "Part II's dialogue often sounds like cartoon captions...its insights are fairly lame",
-                "Plodding, puffed-up kitsch mistaking itself for profound psycho noir that the source material won't support",
-                "So chic, studied and murky it resembles a cross between a Nike commercial and a bad Polish art film",
-                "An uneven movie with yawns aplenty",
-                "A very dark and far too long thriller with many dull moments that would serve the film better by moving along a bit faster.",
-                "All the squealing tyres, flying bullets and falling bodies cannot save Heat from drowning in its own banalities"
-        });
-        labeledText.setFocus(5);
-        Features.extractFeatures(db, labeledText);
-
-        FeatureSelector.createFeatureTarget(new SelectedFeatures(new ArrayList<String>() {
-            {
-                add("positive");
-                add("negative");
-            }
-        }, "binary"), db);
     }
 }
