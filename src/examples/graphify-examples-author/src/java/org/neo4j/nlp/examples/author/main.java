@@ -8,6 +8,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.codehaus.jackson.map.ObjectMapper;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -16,10 +17,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 
 /**
 * Copyright (C) 2014 Kenny Bastani
@@ -130,35 +128,53 @@ class main {
 
     public static void main(String[] args) throws IOException {
 
-        train();
-        test();
+//        train();
+//
+//        // Build target
+//        String payload = "{\n" +
+//                "  \"labels\":[\n" +
+//                "    \"ronald-reagan\",\n" +
+//                "    \"bush41\",\n" +
+//                "    \"barack-obama\",\n" +
+//                "    \"bill-clinton\"\n" +
+//                "  ],\n" +
+//                "  \"type\": \"multi\"\n" +
+//                "}";
+//
+//        String response = executePost("http://localhost:7474/service/graphify/targets/create", payload);
+//
+//        // Deserialize
+//        Gson gson = new Gson();
+//        FeatureTargetResponse featureTargetResponse = gson.fromJson(response, FeatureTargetResponse.class);
+
+        test(4901);
 
     }
 
-    private static void test() throws IOException {
+    private static void test(Integer targetId) throws IOException {
         System.out.println("Bush41");
         for (String path : bush41Test) {
-            testOnText(readLargerTextFile(path));
+            testOnText(readLargerTextFile(path), "bush41", targetId);
         }
 
         System.out.println("Barack Obama:");
         for (String path : obamaTest) {
-            testOnText(readLargerTextFile(path));
+            testOnText(readLargerTextFile(path), "barack-obama", targetId);
         }
 
         System.out.println("Bill Clinton:");
         for (String path : clintonTest) {
-            testOnText(readLargerTextFile(path));
+            testOnText(readLargerTextFile(path), "bill-clinton", targetId);
         }
 
         System.out.println("Ronald Reagan:");
         for (String path : reaganTest) {
-            testOnText(readLargerTextFile(path));
+            testOnText(readLargerTextFile(path), "ronald-reagan", targetId);
         }
 
         System.out.println("George H.W. Bush:");
         for (String path : bush43Test) {
-            testOnText(readLargerTextFile(path));
+            testOnText(readLargerTextFile(path), "bush43", targetId);
         }
     }
 
@@ -204,17 +220,39 @@ class main {
 
         String jsonPayload = new Gson().toJson(jsonParam);
 
-        System.out.println(executePost("http://localhost:7474/service/graphify/training", jsonPayload));
+        System.out.println(executePost("http://localhost:7474/service/graphify/features/extract", jsonPayload));
     }
 
-    private static void testOnText(String text) {
+    private static boolean testOnText(String text, String label, Integer targetId) {
 
         JsonObject jsonParam = new JsonObject();
         jsonParam.add("text", new JsonPrimitive(text));
+        jsonParam.add("targetId", new JsonPrimitive(targetId));
 
         String jsonPayload = new Gson().toJson(jsonParam);
 
-        System.out.println(executePost("http://localhost:7474/service/graphify/classify", jsonPayload));
+        String input = executePost("http://localhost:7474/service/graphify/classify", jsonPayload);
+
+        System.out.println(input);
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        Map<String, Object> hashMap = new HashMap<>();
+        try {
+            hashMap = (Map<String, Object>)objectMapper.readValue(input, HashMap.class);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // Validate guess
+        ArrayList classes = (ArrayList)hashMap.get("classes");
+
+        if(classes.size() > 0) {
+            LinkedHashMap className = (LinkedHashMap) classes.stream().findFirst().get();
+
+            return className.get("class").equals(label);
+        } else {
+            return false;
+        }
     }
 
     private static String executePost(String targetURL, String payload) {
@@ -245,7 +283,7 @@ class main {
 
             httpClient.getConnectionManager().shutdown();
 
-            return output.toString();
+            return "{" + output.toString();
 
         } catch (IOException e) {
 
