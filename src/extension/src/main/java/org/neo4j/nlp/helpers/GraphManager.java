@@ -18,15 +18,18 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import org.neo4j.graphdb.*;
 import org.neo4j.graphdb.index.UniqueFactory;
+import org.neo4j.kernel.TopLevelTransaction;
 import org.neo4j.nlp.abstractions.Manager;
 import org.neo4j.nlp.impl.cache.PatternRelationshipCache;
 import org.neo4j.nlp.impl.manager.DataRelationshipManager;
 import org.neo4j.nlp.impl.manager.NodeManager;
 import org.neo4j.nlp.models.PatternCount;
+import traversal.DecisionTree;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,6 +56,7 @@ public class GraphManager extends Manager {
 
     private final PatternRelationshipCache patternRelationshipCache;
     private final DataRelationshipManager dataRelationshipManager;
+    private DecisionTree<Long> cachedDecisionTree;
     private static final NodeManager nodeManager = new NodeManager();
 
     public static final int MIN_THRESHOLD = 5;
@@ -64,13 +68,25 @@ public class GraphManager extends Manager {
         this.propertyKey = "pattern";
         patternRelationshipCache = new PatternRelationshipCache();
         dataRelationshipManager = new DataRelationshipManager();
+
     }
 
-    public List<String> getNextLayer(Long nodeId, GraphDatabaseService db)
-    {
+    public DecisionTree<Long> getDecisionTree(Long rootId, GraphDatabaseService db) {
+        if (cachedDecisionTree != null) {
+            if (cachedDecisionTree.graph().contains(rootId)) {
+                return cachedDecisionTree.getNode(rootId);
+            } else {
+                return cachedDecisionTree.addNode(rootId);
+            }
+        } else {
+            cachedDecisionTree = new DecisionTree<>(rootId, new scala.collection.mutable.HashMap<>(), db, this);
+            return cachedDecisionTree;
+        }
+    }
 
-        List<Long> getLongs = patternRelationshipCache
-                .getRelationships(nodeId, db, this);
+    public List<String> getPatternMatchers(Long nodeId, GraphDatabaseService db)
+    {
+        List<Long> getLongs = getRelationships(nodeId, db);
 
         List<String> patterns = new ArrayList<>();
 
@@ -89,46 +105,62 @@ public class GraphManager extends Manager {
         }
 
         return patterns;
+    }
 
+    public List<Long> getRelationships(Long nodeId, GraphDatabaseService db) {
+        return patternRelationshipCache
+                    .getRelationships(nodeId, db, this);
+    }
+
+    public Long getNodeIdFromCache(String keyValue, GraphDatabaseService db) {
+        Long nodeId = patternCache.getIfPresent(keyValue);
+
+        if(nodeId == null) {
+            // Get from database
+            nodeId = getNodeId(keyValue, db);
+        }
+
+        return nodeId;
+    }
+
+    public void updateCache(Long id, GraphDatabaseService db) {
+        Node node = getNodeById(id, db);
+
+        // Update the cache for the node
+        try (Transaction tx = db.beginTx()) {
+            String keyValue = node.getProperty(propertyKey).toString();
+            patternCache.put(keyValue, node.getId());
+            inversePatternCache.put(node.getId(), keyValue);
+            tx.success();
+        }
     }
 
     public Node getOrCreateNode(String keyValue, GraphDatabaseService db) {
         if(keyValue != null) {
             Node nodeStart = null;
             Long nodeId = patternCache.getIfPresent(keyValue);
-
             if (nodeId == null) {
-                try(Transaction tx = db.beginTx()) {
-                    ResourceIterator<Node> results = db.findNodesByLabelAndProperty(DynamicLabel.label(label), propertyKey, keyValue).iterator();
-                    if (results.hasNext()) {
-                        nodeStart = results.next();
-                        patternCache.put(keyValue, nodeStart.getId());
-                        inversePatternCache.put(nodeStart.getId(), keyValue);
-                    }
-                    tx.success();
-                    tx.close();
-                }
+                nodeStart = getNode(keyValue, db);
             } else {
                 try(Transaction tx = db.beginTx()) {
-                    nodeStart = db.getNodeById(nodeId);
+                    if(tx.getClass() != TopLevelTransaction.class) {
+                        nodeStart = db.getNodeById(nodeId);
+                    }
                     tx.success();
-                    tx.close();
+                } catch(Exception ex) {
+                    Logger.getAnonymousLogger().info(ex.getMessage());
                 }
             }
 
             if (nodeStart == null) {
-                try(Transaction tx = db.beginTx()) {
+                try (Transaction tx = db.beginTx()) {
                     createNodeFactory(db);
                     nodeStart = patternFactory.getOrCreate(propertyKey, keyValue);
                     Label nodeLabel = DynamicLabel.label(label);
                     nodeStart.addLabel(nodeLabel);
+                    patternCache.put(keyValue, nodeStart.getId());
+                    inversePatternCache.put(nodeStart.getId(), keyValue);
                     tx.success();
-                    tx.close();
-                } finally {
-                    if (nodeStart != null) {
-                        patternCache.put(keyValue, nodeStart.getId());
-                        inversePatternCache.put(nodeStart.getId(), keyValue);
-                    }
                 }
             }
             return nodeStart;
@@ -137,6 +169,51 @@ public class GraphManager extends Manager {
         {
             return null;
         }
+    }
+
+    private Long getNodeId(String keyValue, GraphDatabaseService db) {
+        Long nodeId = null;
+
+        try(Transaction tx = db.beginTx()) {
+            ResourceIterator<Node> results = db.findNodesByLabelAndProperty(DynamicLabel.label(label), propertyKey, keyValue).iterator();
+            if (results.hasNext()) {
+                Node nodeStart = results.next();
+                patternCache.put(keyValue, nodeStart.getId());
+                inversePatternCache.put(nodeStart.getId(), keyValue);
+                nodeId = nodeStart.getId();
+            }
+            tx.success();
+            tx.close();
+        }
+        return nodeId;
+    }
+
+    private Node getNodeById(Long id, GraphDatabaseService db) {
+        Node nodeStart = null;
+
+        try(Transaction tx = db.beginTx()) {
+            nodeStart = db.getNodeById(id);
+            tx.success();
+        } catch(Exception ex) {
+            Logger.getAnonymousLogger().info(ex.getMessage());
+        }
+        return nodeStart;
+    }
+
+    private Node getNode(String keyValue, GraphDatabaseService db) {
+        Node nodeStart = null;
+
+        try(Transaction tx = db.beginTx()) {
+            ResourceIterator<Node> results = db.findNodesByLabelAndProperty(DynamicLabel.label(label), propertyKey, keyValue).iterator();
+            if (results.hasNext()) {
+                nodeStart = results.next();
+                patternCache.put(keyValue, nodeStart.getId());
+                inversePatternCache.put(nodeStart.getId(), keyValue);
+            }
+            tx.success();
+            tx.close();
+        }
+        return nodeStart;
     }
 
     /**

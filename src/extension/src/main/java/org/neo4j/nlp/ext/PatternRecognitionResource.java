@@ -10,6 +10,7 @@ import org.neo4j.nlp.impl.manager.NodeManager;
 import org.neo4j.nlp.impl.util.LearningManager;
 import org.neo4j.nlp.impl.util.VectorUtil;
 import org.neo4j.nlp.models.LabeledText;
+import traversal.DecisionTree;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.Context;
@@ -75,13 +76,13 @@ public class PatternRecognitionResource {
             labeledText.setFocus(1);
         }
 
+        // Create tree
+        Node rootNode = getRootPatternNode(db);
+        DecisionTree<Long> tree = new DecisionTree<>(rootNode.getId(), new scala.collection.mutable.HashMap<>(), db, GRAPH_MANAGER);
+
         // Add first matcher
         for (int i = 0; i < labeledText.getFocus(); i++) {
-            Transaction tx = db.beginTx();
-            getRootPatternNode(db);
-            LearningManager.trainInput(Arrays.asList(labeledText.getText()), Arrays.asList(labeledText.getLabel()), GRAPH_MANAGER, db);
-            tx.success();
-            tx.close();
+            LearningManager.trainInput(Arrays.asList(labeledText.getText()), Arrays.asList(labeledText.getLabel()), GRAPH_MANAGER, db, tree);
         }
 
         return Response.ok()
@@ -116,8 +117,9 @@ public class PatternRecognitionResource {
                 throw new Exception("Error parsing JSON");
             }
 
+            DecisionTree<Long> tree = new DecisionTree<>(getRootPatternNode(db).getId(), new scala.collection.mutable.HashMap<>(), db, GRAPH_MANAGER);
             // This method trains a model on a supplied label and text content
-            String result = new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, GRAPH_MANAGER, cleanText(text)));
+            String result = new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, GRAPH_MANAGER, cleanText(text), tree));
 
             return Response.ok()
                     .entity(result)
@@ -147,7 +149,9 @@ public class PatternRecognitionResource {
             {
                 throw new Exception("Error parsing JSON");
             }
-            List<LinkedHashMap<String, Object>> phrases = VectorUtil.getPhrases(db, cleanText(text), GRAPH_MANAGER);
+
+            DecisionTree<Long> tree = new DecisionTree<>(getRootPatternNode(db).getId(), new scala.collection.mutable.HashMap<>(), db, GRAPH_MANAGER);
+            List<LinkedHashMap<String, Object>> phrases = VectorUtil.getPhrases(db, cleanText(text), GRAPH_MANAGER, tree);
 
 
             return Response.ok()
@@ -179,7 +183,7 @@ public class PatternRecognitionResource {
 
         String similarClass = new Gson().toJson(VectorUtil.similarDocumentMapForClass(db, name));
 
-        return Response.status( 200 )
+        return Response.status(200)
                 .entity(similarClass)
                 .type(MediaType.APPLICATION_JSON)
                 .build();
@@ -208,11 +212,14 @@ public class PatternRecognitionResource {
     private static Node getRootPatternNode(GraphDatabaseService db) {
         Node patternNode;
         patternNode = new NodeManager().getOrCreateNode(GRAPH_MANAGER, GraphManager.ROOT_TEMPLATE, db);
-        if(!patternNode.hasProperty("matches")) {
-            patternNode.setProperty("matches", 0);
-            patternNode.setProperty("threshold", GraphManager.MIN_THRESHOLD);
-            patternNode.setProperty("root", 1);
-            patternNode.setProperty("phrase", "{0} {1}");
+        try(Transaction tx = db.beginTx()) {
+            if (!patternNode.hasProperty("matches")) {
+                patternNode.setProperty("matches", 0);
+                patternNode.setProperty("threshold", GraphManager.MIN_THRESHOLD);
+                patternNode.setProperty("root", 1);
+                patternNode.setProperty("phrase", "{0} {1}");
+            }
+            tx.success();
         }
         return patternNode;
     }

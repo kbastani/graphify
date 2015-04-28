@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
@@ -19,7 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Copyright (C) 2014 Kenny Bastani
@@ -40,58 +41,88 @@ class main {
 
     final public static String negativeSentimentDirectory = "src/main/resources/txt_sentoken/neg";
     final public static String positiveSentimentDirectory = "src/main/resources/txt_sentoken/pos";
-
+    private static final int SAMPLE_SIZE = 1000;
+    final private static Stack<Integer> NEGATIVE_RANDOMIZED_INDEX = getRandomizedIndex(0, SAMPLE_SIZE);
+    final private static Stack<Integer> POSITIVE_RANDOMIZED_INDEX = getRandomizedIndex(0, SAMPLE_SIZE);
+    final static Integer trainCount = 200;
+    final static Integer testCount = 200;
 
     public static void main(String[] args) throws IOException {
         train();
-        System.out.println(test());
+        System.out.println(test(testCount));
     }
 
-    final static Integer trainCount = 600;
+    private static Stack<Integer> getRandomizedIndex(int lowerBound, int upperBound)
+    {
+        List<Integer> randomIndex = new ArrayList<>();
 
-    private static Map<String, Double> test() throws IOException {
-        List<String> negativeText = readLargerTextFile(negativeSentimentDirectory);
+        Collections.addAll(randomIndex, ArrayUtils.toObject(IntStream.range(lowerBound, upperBound).toArray()));
 
+        //randomIndex.sort((a, b) -> new Random().nextInt(2) == 0 ? -1 : 1 );
+
+        Stack<Integer> integerStack = new Stack<>();
+
+        integerStack.addAll(randomIndex);
+
+        return integerStack;
+    }
+
+    private static Map<String, Double> test(Integer testCount) throws IOException {
         Integer negativeError = 0;
         Integer positiveError = 0;
+        Integer totalCount = 0;
+        Integer negativeStep = 0;
+        Integer positiveStep = 0;
+        Integer allStep = 0;
 
-        for(String text : negativeText.stream().skip(trainCount).limit(trainCount).collect(Collectors.toList()))
-        {
-            negativeError += testOnText(text, "negative") ? 0 : 1;
-        }
-
+        List<String> negativeText = readLargerTextFile(negativeSentimentDirectory);
         List<String> positiveText = readLargerTextFile(positiveSentimentDirectory);
 
-        for(String text : positiveText.stream().skip(trainCount).limit(trainCount).collect(Collectors.toList()))
-        {
-            positiveError += testOnText(text, "positive") ? 0 : 1;
+        for (int i = 1; i < testCount * 2; i++) {
+            if(i % 2 == 0)
+            {
+                int result = testOnText(negativeText.get(NEGATIVE_RANDOMIZED_INDEX.pop()), "negative") ? 0 : 1;
+                totalCount += result;
+                negativeError += result;
+                negativeStep += 1;
+                // Status update
+                System.out.println("Negative: " + (1.0 - (negativeError.doubleValue() / negativeStep)));
+            } else {
+                int result = testOnText(positiveText.get(POSITIVE_RANDOMIZED_INDEX.pop()), "positive") ? 0 : 1;
+                totalCount += result;
+                positiveError += result;
+                positiveStep += 1;
+                // Status update
+                System.out.println("Positive: " + (1.0 - (positiveError.doubleValue() / positiveStep)));
+            }
+
+            allStep += 1;
+
+            // Status update
+            System.out.println("All: " + (1.0 - ((negativeError.doubleValue() + positiveError.doubleValue()) / allStep)));
         }
 
-        Map<String, Double> errorMap = new HashMap<String, Double>();
+        Map<String, Double> errorMap = new HashMap<>();
 
-        errorMap.put("negative", 1.0 - (negativeError.doubleValue() / trainCount.doubleValue()));
-        errorMap.put("positive", 1.0 - (positiveError.doubleValue() / trainCount.doubleValue()));
+        errorMap.put("negative", 1.0 - (negativeError.doubleValue() / testCount.doubleValue()));
+        errorMap.put("positive", 1.0 - (positiveError.doubleValue() / testCount.doubleValue()));
+        errorMap.put("all", 1.0 - (totalCount.doubleValue() / (testCount.doubleValue() * 2)));
+
         // Return success ratio
         return errorMap;
     }
 
     private static void train() throws IOException {
-
         List<String> negativeText = readLargerTextFile(negativeSentimentDirectory);
-
-        for(String text : negativeText.stream().skip(500).limit(100).collect(Collectors.toList()))
-        {
-            trainOnText(new String[] { text }, new String[]{"negative"});
-        }
-
         List<String> positiveText = readLargerTextFile(positiveSentimentDirectory);
 
-        for(String text : positiveText.stream().skip(500).limit(100).collect(Collectors.toList()))
-        {
-            trainOnText(new String[] { text }, new String[]{"positive"});
+        for (int i = 0; i < trainCount * 2; i++) {
+            if(i % 2 == 0) {
+                trainOnText(new String[] { negativeText.get(NEGATIVE_RANDOMIZED_INDEX.pop()) }, new String[]{"negative"});
+            } else {
+                trainOnText(new String[] { positiveText.get(POSITIVE_RANDOMIZED_INDEX.pop()) }, new String[]{"positive"});
+            }
         }
-
-
     }
 
     private static void trainOnText(String[] text, String[] label) {
@@ -110,7 +141,7 @@ class main {
         JsonObject jsonParam = new JsonObject();
         jsonParam.add("text", textArray);
         jsonParam.add("label", labelArray);
-        jsonParam.add("focus", new JsonPrimitive(2));
+        jsonParam.add("focus", new JsonPrimitive(1));
 
         String jsonPayload = new Gson().toJson(jsonParam);
 

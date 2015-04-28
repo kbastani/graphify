@@ -7,6 +7,7 @@ import org.neo4j.helpers.collection.IteratorUtil;
 import org.neo4j.nlp.helpers.GraphManager;
 import org.neo4j.nlp.impl.manager.NodeManager;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -37,10 +38,12 @@ import static org.neo4j.graphdb.DynamicRelationshipType.withName;
 
         Cache<Long, List<Long>> relCache = getRelationshipCache();
         relList = relCache.getIfPresent(start);
-
-        NodeManager nodeManager = new NodeManager();
-        String pattern = (String)nodeManager.getNodeAsMap(start,db).get("pattern");
-        Node startNode = graphManager.getOrCreateNode(pattern, db);
+        Node startNode;
+        try(Transaction tx = db.beginTx()) {
+            String pattern = (String) NodeManager.getNodeAsMap(start, db).get("pattern");
+            startNode = graphManager.getOrCreateNode(pattern, db);
+            tx.success();
+        }
 
         if(relList == null)
             relList = getLongs(start, db, null, startNode);
@@ -50,42 +53,54 @@ import static org.neo4j.graphdb.DynamicRelationshipType.withName;
 
     private List<Long> getLongs(Long start, GraphDatabaseService db, List<Long> relList, Node startNode) {
         if (relList == null) {
+            relList = new ArrayList<>();
             try (Transaction tx = db.beginTx()) {
-                relList = IteratorUtil.asCollection(db.traversalDescription()
+                ResourceIterable<Node> nodes = db.traversalDescription()
                         .depthFirst()
                         .relationships(withName(getRelationshipType()), Direction.OUTGOING)
                         .evaluator(Evaluators.fromDepth(1))
                         .evaluator(Evaluators.toDepth(1))
                         .traverse(startNode)
-                        .nodes())
-                        .stream()
-                        .map(Node::getId)
-                        .collect(Collectors.toList());
+                        .nodes();
 
-                relList = new HashSet<>(relList).stream().map(n -> n).collect(Collectors.toList());
-
-                if (relList.size() > 0) {
-                    String propertyKey = getRelationshipAggregateKey();
-                    Integer propertyValue = relList.size();
-                    startNode.setProperty(propertyKey, propertyValue);
-                }
+                final List<Long> finalRelList = relList;
+                nodes.forEach(a -> finalRelList.add(a.getId()));
 
                 tx.success();
+            } catch(Exception ex) {
+                if(relList.size() == 0) {
+                    return relList;
+                }
+            }
+
+            relList = new HashSet<>(relList).stream().map(n -> n).collect(Collectors.toList());
+
+            if (relList.size() > 0) {
+                String propertyKey = getRelationshipAggregateKey();
+                Integer propertyValue = relList.size();
+                try (Transaction tx = db.beginTx()) {
+                    startNode.setProperty(propertyKey, propertyValue);
+                    tx.success();
+                }
             }
 
             getRelationshipCache().put(start, relList);
-
         }
         return relList;
     }
 
-    public void getOrCreateRelationship(Long start, Long end, GraphDatabaseService db, GraphManager graphManager) {
+    public void getOrCreateRelationship(Long start, Long end, GraphDatabaseService db, GraphManager graphManager, boolean bidirectional) {
 
         List<Long> relList = getLongs(start, db, graphManager);
 
+        if(bidirectional && !relList.contains(end))
+        {
+            getOrCreateRelationship(end, start, db, graphManager, false);
+            return;
+        }
+
         if (!relList.contains(end)) {
-            Transaction tx = db.beginTx();
-            try {
+            try(Transaction tx = db.beginTx()) {
                 Node startNode = db.getNodeById(start);
                 Node endNode = db.getNodeById(end);
                 Relationship rel = startNode.createRelationshipTo(endNode, withName(getRelationshipType()));
@@ -94,31 +109,36 @@ import static org.neo4j.graphdb.DynamicRelationshipType.withName;
                 relList = new HashSet<>(relList).stream().map(n -> n).collect(Collectors.toList());
                 startNode.setProperty(getRelationshipAggregateKey(), relList.size());
                 tx.success();
-            } catch (final Exception e) {
-                tx.failure();
             } finally {
-                tx.close();
                 getRelationshipCache().put(start, relList);
             }
         }
         else {
-            Node startNode = db.getNodeById(start);
+            Node startNode;
 
-            Relationship rel =IteratorUtil.asCollection(db.traversalDescription()
-                    .depthFirst()
-                    .relationships(withName(getRelationshipType()), Direction.OUTGOING)
-                    .evaluator(Evaluators.fromDepth(1))
-                    .evaluator(Evaluators.toDepth(1))
-                    .traverse(startNode)
-                    .relationships())
-                    .stream()
-                    .filter(a -> a.getEndNode().getId() == end)
-                    .findFirst()
-                    .get();
+            try(Transaction tx = db.beginTx()) {
+                startNode = db.getNodeById(start);
+                tx.success();
+            }
 
-            Integer matches = (Integer)rel.getProperty("matches");
+            try(Transaction tx = db.beginTx()) {
+                Relationship rel = IteratorUtil.asCollection(db.traversalDescription()
+                        .depthFirst()
+                        .relationships(withName(getRelationshipType()), Direction.OUTGOING)
+                        .evaluator(Evaluators.fromDepth(1))
+                        .evaluator(Evaluators.toDepth(1))
+                        .traverse(startNode)
+                        .relationships())
+                        .stream()
+                        .filter(a -> a.getEndNode().getId() == end)
+                        .findFirst()
+                        .get();
 
-            rel.setProperty("matches", matches + 1);
+                Integer matches = (Integer) rel.getProperty("matches");
+
+                rel.setProperty("matches", matches + 1);
+                tx.success();
+            }
         }
     }
 

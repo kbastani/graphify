@@ -1,9 +1,11 @@
 package org.neo4j.nlp.impl.util;
 
-import org.neo4j.graphdb.GraphDatabaseService;
-import org.neo4j.graphdb.Node;
-import org.neo4j.graphdb.Transaction;
+import org.neo4j.graphalgo.GraphAlgoFactory;
+import org.neo4j.graphalgo.PathFinder;
+import org.neo4j.graphdb.*;
+import org.neo4j.helpers.collection.IteratorUtil;
 import org.neo4j.nlp.helpers.GraphManager;
+import org.neo4j.nlp.impl.cache.AffinityRelationshipCache;
 import org.neo4j.nlp.impl.cache.ClassRelationshipCache;
 import org.neo4j.nlp.impl.cache.PatternRelationshipCache;
 import org.neo4j.nlp.impl.manager.ClassNodeManager;
@@ -11,11 +13,14 @@ import org.neo4j.nlp.impl.manager.DataNodeManager;
 import org.neo4j.nlp.impl.manager.DataRelationshipManager;
 import org.neo4j.nlp.impl.manager.NodeManager;
 import org.neo4j.nlp.models.PatternCount;
+import traversal.DecisionTree;
 
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static org.neo4j.graphdb.DynamicRelationshipType.withName;
 
 /**
 * Copyright (C) 2014 Kenny Bastani
@@ -34,85 +39,178 @@ public class LearningManager {
 
     private static final DataRelationshipManager dataRelationshipManager = new DataRelationshipManager();
     private static final ClassRelationshipCache classRelationshipCache = new ClassRelationshipCache();
+    private static final AffinityRelationshipCache affinityRelationshipCache = new AffinityRelationshipCache();
     private static final PatternRelationshipCache patternRelationshipCache = new PatternRelationshipCache();
     private static final DataNodeManager dataNodeManager = new DataNodeManager();
     private static final ClassNodeManager classNodeManager = new ClassNodeManager();
     private static final NodeManager nodeManager = new NodeManager();
 
-    public static void trainInput(List<String> inputs, List<String> labels, GraphManager graphManager, GraphDatabaseService db)
+    public static void trainInput(List<String> inputs, List<String> labels, GraphManager graphManager,
+                                  GraphDatabaseService db, DecisionTree<Long> tree)
     {
         VectorUtil.vectorSpaceModelCache.invalidateAll();
 
         // Get label node identifiers
         List<Long> labelNodeIds = new ArrayList<>();
 
-        // Get or create label nodes and append the ID to the label node list
-        labelNodeIds.addAll(labels
-                .stream()
-                .map(label -> nodeManager.getOrCreateNode(classNodeManager, label, db)
-                        .getId())
-                .collect(Collectors.toList()));
+        try(Transaction tx = db.beginTx()) {
+            // Get or create label nodes and append the ID to the label node list
+            labelNodeIds.addAll(labels
+                    .stream()
+                    .map(label -> nodeManager.getOrCreateNode(classNodeManager, label, db)
+                            .getId())
+                    .collect(Collectors.toList()));
+            tx.success();
+            tx.close();
+        }
+
+        Long dataNodeId;
 
         // Iterate through the inputs
         for (String input: inputs)
         {
-            Transaction tx = db.beginTx();
-            // Get data node
-            Long dataNodeId = nodeManager.getOrCreateNode(dataNodeManager, input, db).getId();
-            nodeManager.setNodeProperty(dataNodeId, "label", labels.toArray(new String[labels.size()]), db);
+            try(Transaction tx = db.beginTx()) {
+                // Get data node
+                dataNodeId = nodeManager.getOrCreateNode(dataNodeManager, input, db).getId();
+                nodeManager.setNodeProperty(dataNodeId, "label", labels.toArray(new String[labels.size()]), db);
+                tx.success();
+            }
 
-            Map<Long, Integer> patternMatchers = PatternMatcher.match(GraphManager.ROOT_TEMPLATE, input, db, graphManager);
+            Map<Long, Integer> patternMatchers = tree.traverseByPattern(input);
 
-            tx.success();
-            tx.close();
-
-            tx = db.beginTx();
+            // Get or create affinity relationships from matched patterns on the input
+            // Affinity implementation must use an o(n^2) complexity, which is tough to get around
+            // Get or create a bidirectional relationship between Pi<-->Pi
+            // Rules: No affinity relationships for direct descendants, i.e. "OF" and "OF THE"
+            // createAffinityRelationships(graphManager, db, tree, patternMatchers);
 
             for (Long nodeId : patternMatchers.keySet()) {
-                // Get property
-                Integer matchCount = (Integer) nodeManager.getNodeProperty(nodeId, "matches", db);
 
-                if (matchCount == null) {
-                    matchCount = 0;
-                    nodeManager.setNodeProperty(nodeId, "matches", matchCount, db);
+                Integer matchCount;
+                Integer threshold;
+
+                try(Transaction tx = db.beginTx()) {
+                    // Get property
+                    matchCount = (Integer) nodeManager.getNodeProperty(nodeId, "matches", db);
+
+                    if (matchCount == null) {
+                        matchCount = 0;
+                        nodeManager.setNodeProperty(nodeId, "matches", matchCount, db);
+                    }
+
+                    // Set property
+                    nodeManager.setNodeProperty(nodeId, "matches", matchCount + patternMatchers.get(nodeId), db);
+                    tx.success();
+                } catch (Exception ex) {
+                    throw ex;
                 }
 
-
-                // Set property
-                nodeManager.setNodeProperty(nodeId, "matches", matchCount + patternMatchers.get(nodeId), db);
-
-                // Get or create data relationship
-                dataRelationshipManager.getOrCreateNode(nodeId, dataNodeId, db);
+                try(Transaction tx = db.beginTx()) {
+                    // Get or create data relationship
+                    dataRelationshipManager.getOrCreateNode(nodeId, dataNodeId, db);
+                    tx.success();
+                } catch (Exception ex) {
+                    throw ex;
+                }
 
                 for (Long labelId : labelNodeIds) {
                     // Get or create class relationship
-                    classRelationshipCache.getOrCreateRelationship(nodeId, labelId, db, graphManager);
+                    try(Transaction tx = db.beginTx()) {
+                        classRelationshipCache.getOrCreateRelationship(nodeId, labelId, db, graphManager, false);
+                        tx.success();
+                    } catch (Exception ex) {
+                        throw ex;
+                    }
                 }
 
-                // Check if the match count has exceeded the threshold
-                matchCount = (Integer) nodeManager.getNodeProperty(nodeId, "matches", db);
-                Integer threshold = (Integer) nodeManager.getNodeProperty(nodeId, "threshold", db);
-
-
-                if (matchCount > threshold) {
-                    // Set match count to 0
-                    nodeManager.setNodeProperty(nodeId, "matches", 0, db);
-
-                    // Increase threshold
-                    nodeManager.setNodeProperty(nodeId, "threshold", (threshold / GraphManager.MIN_THRESHOLD) + (threshold), db);
-
-                    // Populate a map of matched patterns
-                    Map<Integer, Map<String, PatternCount>> matchDictionary = new HashMap<>();
-                    populatePatternMap(db, nodeId, matchDictionary);
-
-                    // Generate nodes for every wildcard
-                    generateChildPatterns(db, nodeManager.getNodeAsMap(nodeId, db), matchDictionary, graphManager);
+                try(Transaction tx = db.beginTx()) {
+                    // Check if the match count has exceeded the threshold
+                    matchCount = (Integer) nodeManager.getNodeProperty(nodeId, "matches", db);
+                    threshold = (Integer) nodeManager.getNodeProperty(nodeId, "threshold", db);
+                    tx.success();
+                } catch (Exception ex) {
+                    throw ex;
                 }
 
+                try {
+                    if (matchCount != null) {
+                        if (matchCount > threshold) {
+                            try (Transaction tx = db.beginTx()) {
+                                // Set match count to 0
+                                nodeManager.setNodeProperty(nodeId, "matches", 0, db);
+
+                                // Increase threshold
+                                nodeManager.setNodeProperty(nodeId, "threshold", (threshold / GraphManager.MIN_THRESHOLD) + (threshold), db);
+                                tx.success();
+                            } catch (Exception ex) {
+                                throw ex;
+                            }
+                            // Populate a map of matched patterns
+                            Map<Integer, Map<String, PatternCount>> matchDictionary = new HashMap<>();
+
+                            try (Transaction tx = db.beginTx()) {
+                                populatePatternMap(db, nodeId, matchDictionary);
+                                tx.success();
+                            } catch (Exception ex) {
+                                throw ex;
+                            }
+
+                            // Generate nodes for every wildcard
+                            generateChildPatterns(db, NodeManager.getNodeAsMap(nodeId, db), matchDictionary, graphManager);
+                        }
+                    }
+                } catch(Exception ex) {
+                    throw ex;
+                }
             }
+        }
+    }
 
-            tx.success();
-            tx.close();
+    /**
+     * Experimental: Create affinity relationships between patterns that are encountered together during training.
+     * @param graphManager is the global graph manager for managing an optimized cache of graph data
+     * @param db is the Neo4j database service
+     * @param tree is the decision tree for pattern matching
+     * @param patternMatchers is the set of pattern matchers produced from the decision tree
+     */
+    private static void createAffinityRelationships(GraphManager graphManager, GraphDatabaseService db, DecisionTree<Long> tree, Map<Long, Integer> patternMatchers) {
+        List<String> toFrom = new ArrayList<>();
+        for (Long startId : patternMatchers.keySet()) {
+            // Get or create the affinity relationship
+            try(Transaction tx = db.beginTx()) {
+                patternMatchers.keySet().stream().filter(endId -> startId != endId).forEach(endId -> {
+                    Node startNode = db.getNodeById(startId > endId ? endId : startId);
+                    Node endNode = db.getNodeById(startId > endId ? startId : endId);
+                    String key = startNode.getId() + "_" + endNode.getId();
+
+                    // If startNode matches the end node
+                    Pattern generalMatcher = Pattern.compile((String) startNode.getProperty("pattern"));
+                    Matcher regexMatcher = generalMatcher.matcher(((String) endNode.getProperty("phrase")).replaceAll("(\\{[01]\\})", "word"));
+
+                    if (!toFrom.contains(key) && !regexMatcher.find()) {
+                        // Depth of the start node must be > 2
+                        PathFinder<Path> depthFinder = GraphAlgoFactory.shortestPath(PathExpanders.forTypeAndDirection(withName("NEXT"), Direction.OUTGOING), 100);
+                        int depth1 = IteratorUtil.count(depthFinder.findSinglePath(db.getNodeById(tree.root()), startNode).nodes().iterator());
+                        int depth2 = IteratorUtil.count(depthFinder.findSinglePath(db.getNodeById(tree.root()), endNode).nodes().iterator());
+
+                        if (depth1 > 3 && depth2 > 3 && depth2 > depth1) {
+                            // Eliminate descendant
+                            PathFinder<Path> finder = GraphAlgoFactory.shortestPath(PathExpanders.forTypeAndDirection(withName("NEXT"), Direction.OUTGOING), 100);
+                            Path findPath = finder.findSinglePath(startNode, endNode);
+
+                            if (findPath == null) {
+                                toFrom.add(key);
+                                // Get or create the affinity relationship
+                                affinityRelationshipCache.getOrCreateRelationship(startNode.getId(), endNode.getId(), db, graphManager, true);
+                            }
+                        }
+                    }
+                });
+                tx.success();
+                tx.close();
+            } catch (Exception ex) {
+                throw ex;
+            }
         }
     }
 
@@ -140,42 +238,88 @@ public class LearningManager {
                 String newPattern = GeneratePattern(i, patternCount, pattern);
                 String newTemplate = GetTemplate(newPattern);
 
-                while (nodeManager.getOrCreateNode(graphManager, newPattern, db).hasProperty("matches") && counter < (patternCounts.size() - 1)) {
+                boolean patternFinish = true;
+
+                while (patternFinish) {
+
                     patternCount = (PatternCount) patternCounts.toArray()[counter];
                     pattern = (String) currentNode.get("pattern");
                     newPattern = GeneratePattern(i, patternCount, pattern);
                     newTemplate = GetTemplate(newPattern);
                     counter++;
+                    Node existingNode;
+                    try (Transaction tx = db.beginTx()) {
+                        existingNode = nodeManager.getOrCreateNode(graphManager, newPattern, db);
+                        tx.success();
+                    }
+
+                    if (existingNode != null) {
+                        try (Transaction tx = db.beginTx()) {
+                            patternFinish = existingNode.hasProperty("matches");
+                            tx.success();
+                        }
+                    }
+                    patternFinish = patternFinish && counter < (patternCounts.size() - 1);
+
+
                 }
 
-                Node leafNode = nodeManager.getOrCreateNode(graphManager, newPattern, db);
+                Node leafNode;
+                boolean hasMatches;
+                try(Transaction tx = db.beginTx()) {
+                    leafNode = nodeManager.getOrCreateNode(graphManager, newPattern, db);
+                    hasMatches = !leafNode.hasProperty("matches");
+                    tx.success();
+                }
 
-                if (!leafNode.hasProperty("matches")) {
-                    if (GraphManager.edgeCache.getIfPresent((String.valueOf(leafNode.getId()))) == null) {
-                        GraphManager.edgeCache.put((String.valueOf(leafNode.getId())), (String.valueOf(leafNode.getId())));
+                if (hasMatches) {
+                    try (Transaction tx = db.beginTx()) {
+                        mapBranchToLeaf(db, currentNode, graphManager, leafNode);
+                        tx.success();
                     }
 
-                    if (GraphManager.edgeCache.getIfPresent(currentNode.get("id") + "->" + (int) leafNode.getId()) == null) {
-                        patternRelationshipCache.getOrCreateRelationship((Long) currentNode.get("id"), leafNode.getId(), db, graphManager);
+                    try (Transaction tx = db.beginTx()) {
+                        Long leafNodeId = leafNode.getId();
+                        nodeManager.setNodeProperty(leafNodeId, "matches", patternCount.getDataNodes().size(), db);
+                        nodeManager.setNodeProperty(leafNodeId, "threshold", GraphManager.MIN_THRESHOLD, db);
+                        nodeManager.setNodeProperty(leafNodeId, "phrase", newTemplate, db);
+                        tx.success();
                     }
-
-                    Long leafNodeId = leafNode.getId();
-                    nodeManager.setNodeProperty(leafNodeId, "matches", patternCount.getDataNodes().size(), db);
-                    nodeManager.setNodeProperty(leafNodeId, "threshold", GraphManager.MIN_THRESHOLD, db);
-                    nodeManager.setNodeProperty(leafNodeId, "phrase", newTemplate, db);
 
                     // Bind new pattern to the data nodes it was generated from
                     patternCount.getDataNodes().forEach((dn) ->
                     {
                         String[] dataLabels = (String[]) dn.get("label");
                         for (String labelName : dataLabels) {
-                            Node labelNode = nodeManager.getOrCreateNode(classNodeManager, labelName, db);
-                            classRelationshipCache.getOrCreateRelationship(leafNode.getId(), labelNode.getId(), db, graphManager);
+                            Node labelNode;
+                            Long leafNodeId;
+                            Long labelNodeId;
+
+                            try (Transaction tx = db.beginTx()) {
+                                labelNode = nodeManager.getOrCreateNode(classNodeManager, labelName, db);
+                                leafNodeId = leafNode.getId();
+                                labelNodeId = labelNode.getId();
+                                tx.success();
+                            }
+                            classRelationshipCache.getOrCreateRelationship(leafNodeId, labelNodeId, db, graphManager, false);
                         }
-                        dataRelationshipManager.getOrCreateNode(leafNode.getId(), (Long) dn.get("id"), db);
+                        try (Transaction tx = db.beginTx()) {
+                            dataRelationshipManager.getOrCreateNode(leafNode.getId(), (Long) dn.get("id"), db);
+                            tx.success();
+                        }
                     });
                 }
             }
+        }
+    }
+
+    public static void mapBranchToLeaf(GraphDatabaseService db, Map<String, Object> currentNode, GraphManager graphManager, Node leafNode) {
+        if (GraphManager.edgeCache.getIfPresent((String.valueOf(leafNode.getId()))) == null) {
+            GraphManager.edgeCache.put((String.valueOf(leafNode.getId())), (String.valueOf(leafNode.getId())));
+        }
+
+        if (GraphManager.edgeCache.getIfPresent(currentNode.get("id") + "->" + (int) leafNode.getId()) == null) {
+            patternRelationshipCache.getOrCreateRelationship((Long) currentNode.get("id"), leafNode.getId(), db, graphManager, false);
         }
     }
 

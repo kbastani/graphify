@@ -9,6 +9,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.nlp.helpers.GraphManager;
 import org.neo4j.nlp.impl.cache.ClassRelationshipCache;
@@ -19,6 +20,7 @@ import org.neo4j.nlp.impl.manager.DataRelationshipManager;
 import org.neo4j.nlp.impl.manager.NodeManager;
 import org.neo4j.nlp.models.PatternCount;
 import org.neo4j.test.TestGraphDatabaseFactory;
+import traversal.DecisionTree;
 
 import java.io.IOException;
 import java.util.*;
@@ -44,19 +46,23 @@ public class GraphManagerTest {
     }
 
     private static String executeCypher(GraphDatabaseService db, String cypher, Map<String, Object> params) {
-        org.neo4j.cypher.javacompat.ExecutionEngine engine;
-        engine = new org.neo4j.cypher.javacompat.ExecutionEngine(db);
 
-        org.neo4j.cypher.javacompat.ExecutionResult result;
-
-        try ( Transaction tx = db.beginTx() ) {
-            result = engine.execute(cypher, params);
-            tx.success();
-        }
+        Result result;
 
         List<Map<String, Object>> results = new ArrayList<>();
-        for (Map<String,Object> row : result) {
-            results.add(new LinkedHashMap<>(row));
+
+        try ( Transaction tx = db.beginTx() ) {
+            result = db.execute(cypher, params);
+            tx.success();
+
+
+
+            while (result.hasNext()) {
+                results.add(result.next());
+            }
+
+            tx.success();
+            tx.close();
         }
 
         return new Gson().toJson(results);
@@ -80,7 +86,7 @@ public class GraphManagerTest {
 
     private static GraphDatabaseService setUpDb()
     {
-        return new TestGraphDatabaseFactory().newImpermanentDatabaseBuilder().newGraphDatabase();
+        return new TestGraphDatabaseFactory().newImpermanentDatabase();
     }
 
     @Test
@@ -98,7 +104,6 @@ public class GraphManagerTest {
         Assert.assertTrue(stringArray.getClass() == String[].class);
     }
 
-    @Ignore
     @Test
     public void testLearningManager() throws Exception {
         // Invalidate all caches
@@ -115,6 +120,8 @@ public class GraphManagerTest {
         GraphDatabaseService db = setUpDb();
         GraphManager graphManager = new GraphManager("Pattern");
         Node rootNode = getRootPatternNode(db, graphManager);
+
+        DecisionTree<Long> tree = new DecisionTree<>(rootNode.getId(), new scala.collection.mutable.HashMap<>(), db, graphManager);
 
         Map<String, String> text = new HashMap<>();
         text.put("The first word in a sentence is interesting", "sentence");
@@ -232,15 +239,15 @@ public class GraphManagerTest {
 
         for (String str : text.keySet())
         {
-            LearningManager.trainInput(Lists.asList(str, new String[0]), Lists.asList(text.get(str), new String[0]), graphManager, db);
+            LearningManager.trainInput(Lists.asList(str, new String[0]), Lists.asList(text.get(str), new String[0]), graphManager, db, tree);
         }
 
-        String rootPattern;
+        String rootPattern = GraphManager.ROOT_TEMPLATE;
 
-        try (Transaction tx = db.beginTx()) {
-            rootPattern = (String) rootNode.getProperty("pattern");
-            tx.success();
-        }
+//        try (Transaction tx = db.beginTx()) {
+//            rootPattern = (String) rootNode.getProperty("pattern");
+//            tx.success();
+//        }
 
         String input = "The fiftieth word in a document is interesting";
         classifyInput(db, graphManager, rootPattern, input);
@@ -254,6 +261,7 @@ public class GraphManagerTest {
         // When the value of an index in the vector is 1, the feature at that index was recognized in an input.
 
         input = "The last word in a sentence is interesting";
+        System.out.println("FEATURE VECTOR for 'The last word in a sentence is interesting'");
         System.out.println(getFeatureVector(db, graphManager, rootPattern, input));
 
         String input1 = "The last word in a sentence is interesting";
@@ -263,25 +271,39 @@ public class GraphManagerTest {
 
         double cosineSimilarity = VectorUtil.cosineSimilarity(v1, v2);
 
+        System.out.println("COSINE SIMILARITY");
         System.out.println(cosineSimilarity);
 
         String input3 = "The tenth word in a paragraph is interesting";
         List<Double> v3 = getFeatureVector(db, graphManager, rootPattern, input3);
 
+        // Get variance for patterns
+
+        System.out.println("COSINE SIMILARITY for v1 and v3");
         System.out.println(VectorUtil.cosineSimilarity(v1, v3));
 
         String input4 = "Durr in durr a durr";
         List<Double> v4 = getFeatureVector(db, graphManager, rootPattern, input4);
 
+        System.out.println("COSINE SIMILARITY for v1 and v4");
         System.out.println(VectorUtil.cosineSimilarity(v1, v4));
 
         String input5 = "The sixth letter in a stanza is interesting";
 
         VectorUtil.vectorSpaceModelCache.invalidateAll();
 
-        System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, graphManager, input3)));
-        System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, graphManager, input1)));
-        System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForClass(db, "paragraph")));
+        System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, graphManager, input3, tree)));
+        System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForVector(db, graphManager, input1, tree)));
+        //System.out.println(new Gson().toJson(VectorUtil.similarDocumentMapForClass(db, "paragraph")));
+
+        System.out.println(new Gson().toJson(VectorUtil.getPhrases(db, input1, graphManager, tree)));
+
+        VectorUtil.vectorSpaceModelCache.invalidateAll();
+
+        System.out.println(VectorUtil.getPhrasesForClass(db, "paragraph"));
+        System.out.println(VectorUtil.getPhrasesForClass(db, "document"));
+        System.out.println(VectorUtil.getPhrasesForClass(db, "sentence"));
+        System.out.println(VectorUtil.getPhrasesForClass(db, "ensemble"));
 
     }
 
@@ -350,7 +372,8 @@ public class GraphManagerTest {
 
     private List<Double> getFeatureVector(GraphDatabaseService db, GraphManager graphManager, String rootPattern, String input) {
         Map<String, Object> params = new HashMap<>();
-        Map<Long, Integer> patternMatchers = PatternMatcher.match(rootPattern, input, db, graphManager);
+        Long nodeId = graphManager.getOrCreateNode(rootPattern, db).getId();
+        Map<Long, Integer> patternMatchers = graphManager.getDecisionTree(nodeId, db).traverseByPattern(input);
         String featureIndex = executeCypher(db, FEATURE_INDEX_QUERY, params);
         ObjectMapper objectMapper = new ObjectMapper();
         List<Integer> featureIndexList = new ArrayList<>();
@@ -375,7 +398,8 @@ public class GraphManagerTest {
 
     private void classifyInput(GraphDatabaseService db, GraphManager graphManager, String rootPattern, String input) {
         Map<String, Object> params;
-        Map<Long, Integer> patternMatchers = PatternMatcher.match(rootPattern, input, db, graphManager);
+        Long nodeId = graphManager.getOrCreateNode(rootPattern, db).getId();
+        Map<Long, Integer> patternMatchers = graphManager.getDecisionTree(nodeId, db).traverseByPattern(input);
         List<Long> longs = new ArrayList<>();
         Collections.addAll(longs, patternMatchers.keySet().toArray(new Long[longs.size()]));
         params = new HashMap<>();

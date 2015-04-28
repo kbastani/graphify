@@ -2,6 +2,9 @@ package org.neo4j.nlp.impl.util;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.math.stat.StatUtils;
+import org.apache.commons.math.stat.descriptive.DescriptiveStatistics;
 import org.javalite.common.Convert;
 import org.neo4j.graphdb.*;
 import org.neo4j.graphdb.traversal.Evaluators;
@@ -9,6 +12,7 @@ import org.neo4j.helpers.collection.IteratorUtil;
 import org.neo4j.nlp.helpers.GraphManager;
 import org.neo4j.nlp.impl.manager.NodeManager;
 import org.neo4j.tooling.GlobalGraphOperations;
+import traversal.DecisionTree;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -31,6 +35,7 @@ import static org.neo4j.graphdb.DynamicRelationshipType.withName;
 public class VectorUtil {
 
     public static final Cache<String, Object> vectorSpaceModelCache = CacheBuilder.newBuilder().maximumSize(20000000).build();
+    public static final double CONFIDENCE_INTERVAL = 0.15;
 
     private static Double dotProduct(List<Double> v1, List<Double> v2)
     {
@@ -109,7 +114,12 @@ public class VectorUtil {
                     .evaluator(Evaluators.toDepth(1))
                     .traverse(classNode)).stream()
                     .forEach(p ->
-                            termDocumentMatrix.put(p.endNode().getId(), (Integer) p.lastRelationship().getProperty("matches")));
+                    {
+                        int matches = (Integer) p.lastRelationship().getProperty("matches");
+                        termDocumentMatrix.put(p.endNode().getId(), matches);
+                    });
+
+
 
             vectorSpaceModelCache.put(cacheKey, termDocumentMatrix);
         }
@@ -142,6 +152,39 @@ public class VectorUtil {
         return documentSize;
     }
 
+    public static double getFeatureMatchDistribution(GraphDatabaseService db, Long patternId)
+    {
+        Transaction tx = db.beginTx();
+        Node startNode = db.getNodeById(patternId);
+
+        // Feature match distribution
+        List<Double> matches = IteratorUtil.asCollection(db.traversalDescription()
+                .depthFirst()
+                .relationships(withName("HAS_CLASS"), Direction.OUTGOING)
+                .evaluator(Evaluators.fromDepth(1))
+                .evaluator(Evaluators.toDepth(1))
+                .traverse(startNode)
+                .relationships())
+                .stream()
+                .map(p -> ((Integer)p.getProperty("matches")).doubleValue())
+                .collect(Collectors.toList());
+
+        tx.success();
+        tx.close();
+
+        double variance = 1.0;
+
+        if(matches.size() > 1) {
+            Double[] matchArr = matches.toArray(new Double[matches.size()]);
+            // Get the standard deviation
+            DescriptiveStatistics ds = new DescriptiveStatistics();
+            matches.forEach(m -> ds.addValue(m.doubleValue() / StatUtils.sum(ArrayUtils.toPrimitive(matchArr))));
+            variance = ds.getStandardDeviation();
+        }
+
+        return variance;
+    }
+
     public static int getDocumentSizeForFeature(GraphDatabaseService db, Long id)
     {
         int documentSize;
@@ -171,9 +214,9 @@ public class VectorUtil {
         return documentSize;
     }
 
-    public static List<LinkedHashMap<String, Object>> getFeatureFrequencyMap(GraphDatabaseService db, String text, GraphManager graphManager) {
+    public static List<LinkedHashMap<String, Object>> getFeatureFrequencyMap(GraphDatabaseService db, String text, GraphManager graphManager, DecisionTree<Long> tree) {
         // This method trains a model on a supplied label and text content
-        Map<Long, Integer> patternMatchers = PatternMatcher.match(GraphManager.ROOT_TEMPLATE, text, db, graphManager);
+        Map<Long, Integer> patternMatchers = tree.traverseByPattern(text);
 
         // Translate map to phrases
         List<LinkedHashMap<String, Object>> results = patternMatchers.keySet().stream()
@@ -182,6 +225,7 @@ public class VectorUtil {
                     LinkedHashMap<String, Object> linkHashMap = new LinkedHashMap<>();
                     linkHashMap.put("feature", a.intValue());
                     linkHashMap.put("frequency", patternMatchers.get(a));
+                    linkHashMap.put("variance", getFeatureMatchDistribution(db, a));
                     return linkHashMap;
                 })
                 .collect(Collectors.toList());
@@ -195,9 +239,47 @@ public class VectorUtil {
         return results;
     }
 
-    public static List<LinkedHashMap<String, Object>> getPhrases(GraphDatabaseService db, String text, GraphManager graphManager) {
+    public static List<LinkedHashMap<String, Object>> getPhrasesForClass(GraphDatabaseService db, String className) {
         // This method trains a model on a supplied label and text content
-        Map<Long, Integer> patternMatchers = PatternMatcher.match(GraphManager.ROOT_TEMPLATE, text, db, graphManager);
+        VsmCacheModel vsmCacheModel = new VsmCacheModel(db).invoke();
+
+        List<Integer> longs = vsmCacheModel.getDocuments().get(className).stream()
+                .map(a -> ((Integer)a.get("feature")))
+                .collect(Collectors.toList());
+
+        Map<Long, LinkedHashMap<Long, Integer>> pageRankGraph = new HashMap<>();
+
+        // PageRank
+        Map<Long, Double> pageRank = getPageRankOnFeatures(db, longs, pageRankGraph);
+
+        // Translate map to phrases
+        List<LinkedHashMap<String, Object>> results = longs.stream()
+                .map(a ->
+                {
+                    LinkedHashMap<String, Object> linkHashMap = new LinkedHashMap<>();
+                    linkHashMap.put("feature", NodeManager.getNodeFromGlobalCache(a.longValue()).get("phrase"));
+                    linkHashMap.put("affinity", (pageRank.get(a.longValue()) + getFeatureMatchDistribution(db, a.longValue())) / 2.0);
+                    return linkHashMap;
+                })
+                .collect(Collectors.toList());
+
+        results.sort((a, b) ->
+        {
+            Double diff = (((Double)a.get("affinity")) * 100) - (((Double)b.get("affinity")) * 100);
+            return diff > 0.0 ? -1 : diff.equals(0.0) ? 0 : 1;
+        });
+
+        return results;
+    }
+
+    public static List<LinkedHashMap<String, Object>> getPhrases(GraphDatabaseService db, String text, GraphManager graphManager, DecisionTree<Long> decisionTree) {
+        // This method trains a model on a supplied label and text content
+        Map<Long, Integer> patternMatchers = decisionTree.traverseByPattern(text);
+
+        Map<Long, LinkedHashMap<Long, Integer>> pageRankGraph = new HashMap<>();
+
+        // PageRank
+        Map<Long, Double> pageRank = getPageRankOnFeatures(db, patternMatchers.keySet().stream().map(l -> l.intValue()).collect(Collectors.toList()), pageRankGraph);
 
         // Translate map to phrases
         List<LinkedHashMap<String, Object>> results = patternMatchers.keySet().stream()
@@ -206,6 +288,9 @@ public class VectorUtil {
                     LinkedHashMap<String, Object> linkHashMap = new LinkedHashMap<>();
                     linkHashMap.put("feature", NodeManager.getNodeFromGlobalCache(a).get("phrase"));
                     linkHashMap.put("frequency", patternMatchers.get(a));
+                    linkHashMap.put("variance", getFeatureMatchDistribution(db, a));
+                    linkHashMap.put("affinity", pageRank.get(a));
+
                     return linkHashMap;
                 })
                 .collect(Collectors.toList());
@@ -219,19 +304,65 @@ public class VectorUtil {
         return results;
     }
 
-    private static List<Double> getFeatureVector(GraphDatabaseService db, GraphManager graphManager, String input, List<Integer> featureIndexList) {
-        List<LinkedHashMap<String, Object>> featureFrequencyMap = getFeatureFrequencyMap(db, input, graphManager);
+    private static List<Double> getFeatureVector(GraphDatabaseService db, GraphManager graphManager, String input, List<Integer> featureIndexList, DecisionTree<Long> decisionTree) {
+        List<LinkedHashMap<String, Object>> featureFrequencyMap = getFeatureFrequencyMap(db, input, graphManager, decisionTree);
 
-        List<Integer> longs = featureFrequencyMap.stream().map(a -> (Integer)a.get("feature")).collect(Collectors.toList());
+        List<Integer> longs = featureFrequencyMap.stream()
+                .filter(a -> (double)a.get("variance") > CONFIDENCE_INTERVAL)
+                .map(a -> (Integer) a.get("feature"))
+                .collect(Collectors.toList());
 
-//        ((Integer) featureFrequencyMap.stream()
-//                .filter(a -> (a.get("feature")).equals(i))
-//                .collect(Collectors.toList()).get(0).get("frequency")).doubleValue()
+
+        Map<Long, LinkedHashMap<Long, Integer>> pageRankGraph = new HashMap<>();
+        Map<Long, Double> pageRankScore = getPageRankOnFeatures(db, longs, pageRankGraph);
 
         return featureIndexList.stream().map(i -> longs.contains(i) ?
-                1.0
+                ((pageRankScore.get(i.longValue()) +
+                        ((double)featureFrequencyMap.stream().filter(a -> ((Integer)a.get("feature")).equals(i))
+                        .collect(Collectors.toList()).get(0).get("variance"))) / 2.0) * 10.0
                 :
                 0.0).collect(Collectors.toList());
+    }
+
+    private static Map<Long, Double> getPageRankOnFeatures(GraphDatabaseService db, List<Integer> longs, Map<Long, LinkedHashMap<Long, Integer>> pageRankGraph) {
+        Transaction tx = db.beginTx();
+
+        longs.forEach(a ->
+        {
+            // Find the affinity of connections between these features
+            Node startNode = db.getNodeById(a);
+
+            List<Path> paths = IteratorUtil.asCollection(db.traversalDescription()
+                    .depthFirst()
+                    .relationships(withName("HAS_AFFINITY"), Direction.BOTH)
+                    .evaluator(Evaluators.fromDepth(1))
+                    .evaluator(Evaluators.toDepth(1))
+                    .traverse(startNode)
+                    .iterator())
+                    .stream().collect(Collectors.toList());
+
+            if(paths.size() == 0) {
+                LinkedHashMap<Long, Integer> edgeList = new LinkedHashMap<>();
+                pageRankGraph.put(a.longValue(), edgeList);
+            } else {
+
+                List<Path> community =
+                        paths.stream().filter(p -> longs.contains((((Long) p.endNode().getId()).intValue())))
+                                .collect(Collectors.toList());
+
+                LinkedHashMap<Long, Integer> edgeList = new LinkedHashMap<>();
+
+                community.forEach(c ->
+                        edgeList.put(c.endNode().getId(), (Integer) c.lastRelationship().getProperty("matches")));
+
+                pageRankGraph.put(a.longValue(), edgeList);
+            }
+        });
+
+        tx.success();
+        tx.close();
+
+        return PageRank.calculatePageRank(pageRankGraph);
     }
 
     private static List<Integer> getFeatureIndexList(GraphDatabaseService db) {
@@ -244,7 +375,9 @@ public class VectorUtil {
 
         Collections.sort(patterns, (a, b) -> ((Integer)b.getProperty("threshold")).compareTo(((Integer)a.getProperty("threshold"))));
 
-        List<Integer> patternIds = patterns.stream().map(a -> ((Long)a.getId()).intValue()).collect(Collectors.toList());
+        List<Integer> patternIds = patterns.stream()
+                .filter(a -> getFeatureMatchDistribution(db, a.getId()) > CONFIDENCE_INTERVAL)
+                .map(a -> ((Long)a.getId()).intValue()).collect(Collectors.toList());
 
         tx.success();
         tx.close();
@@ -317,7 +450,7 @@ public class VectorUtil {
         return vectorMap;
     }
 
-    public static Map<String, List<LinkedHashMap<String, Object>>> similarDocumentMapForVector(GraphDatabaseService db, GraphManager graphManager, String input) {
+    public static Map<String, List<LinkedHashMap<String, Object>>> similarDocumentMapForVector(GraphDatabaseService db, GraphManager graphManager, String input, DecisionTree<Long> decisionTree) {
         Map<String, List<LinkedHashMap<String, Object>>> documents;
         Map<String, List<LinkedHashMap<String, Object>>> results = new HashMap<>();
         List<Integer> featureIndexList;
@@ -326,14 +459,14 @@ public class VectorUtil {
         featureIndexList = vsmCacheModel.getFeatureIndexList();
         documents = vsmCacheModel.getDocuments();
 
-        List<Double> features = getFeatureVector(db, graphManager, input, featureIndexList);
+        List<Double> features = getFeatureVector(db, graphManager, input, featureIndexList, decisionTree);
 
         List<LinkedHashMap<String, Object>> resultList = new ArrayList<>();
         LinkedHashMap<String, Double> classMap = new LinkedHashMap<>();
 
         documents.keySet().stream().forEach(otherKey -> {
             List<Double> v2 = getWeightVectorForClass(documents, otherKey, featureIndexList, db);
-            classMap.put(otherKey, cosineSimilarity(v2, features));
+            classMap.put(otherKey, cosineSimilarity(features, v2));
         });
 
         classMap.keySet().stream().forEach(ks -> {
@@ -487,18 +620,20 @@ public class VectorUtil {
                 .evaluator(Evaluators.toDepth(1))
                 .traverse(classNode)) {
 
-            LinkedHashMap<String, Object> featureMap = new LinkedHashMap<>();
+            if(getFeatureMatchDistribution(db, p.endNode().getId()) > CONFIDENCE_INTERVAL) {
 
-            if(p.relationships().iterator().hasNext()) {
-                featureMap.put("frequency", p.relationships().iterator().next().getProperty("matches"));
+                LinkedHashMap<String, Object> featureMap = new LinkedHashMap<>();
+
+                if (p.relationships().iterator().hasNext()) {
+                    featureMap.put("frequency", p.relationships().iterator().next().getProperty("matches"));
+                } else {
+                    featureMap.put("frequency", 0);
+                }
+
+                featureMap.put("feature", ((Long) p.endNode().getId()).intValue());
+
+                patternIds.add(featureMap);
             }
-            else {
-                featureMap.put("frequency", 0);
-            }
-
-            featureMap.put("feature", ((Long)p.endNode().getId()).intValue());
-
-            patternIds.add(featureMap);
         }
         return patternIds;
     }

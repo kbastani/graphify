@@ -17,6 +17,7 @@ import javax.ws.rs.core.MediaType;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.URLEncoder;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -38,24 +39,58 @@ public class main {
     public static void main(String[] args) throws IOException {
         List<Map<String, Object>> results = getWikipediaArticles();
 
+        results = results.stream().filter(a -> !a.get("title").toString().trim().isEmpty())
+                .collect(Collectors.toList());
         //System.out.println(results);
         // Train model
-        results.stream().filter(row -> (!row.get("text").toString().equals(""))).forEach(row -> {
+        results.forEach(row -> {
             System.out.println("Training on '" + row.get("title").toString() + "'");
-            trainOnText(new String[]{(String) row.get("text")}, new String[]{(String) row.get("title")});
+            String articleText = getArticleText(row.get("title").toString());
+            if(articleText != null) {
+                trainOnText(new String[]{(String) articleText}, new String[]{(String) row.get("title")});
+            }
+
         });
 
         //System.out.println(results);
+//        try {
+//            Thread.sleep(10);
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
+    }
+
+    static String urlFormat = "http://en.wikipedia.org/w/api.php?action=query&prop=extracts&format=json&exintro=&explaintext=&exsectionformat=raw&titles=%s&redirects=";
+    private static String getArticleText(String title) {
+        WebResource resource = Client.create().resource( String.format(urlFormat, URLEncoder.encode(title)) );
+
+        ClientResponse response = resource
+                .accept(MediaType.APPLICATION_JSON)
+                .type(MediaType.APPLICATION_JSON)
+                .get(ClientResponse.class);
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        String result;
+
+        try {
+            result = response.getEntity(String.class);
+            result = Article.getExtract(result);
+        } catch (Exception e) {
+            throw e;
+        }
+        response.close();
+
+        return result;
     }
 
     private static List<Map<String, Object>> getWikipediaArticles() throws IOException {
         final String txUri = "http://localhost:7474/db/data/" + "transaction/commit";
         WebResource resource = Client.create().resource( txUri );
 
-        String query = "MATCH (n:Page) WHERE n.text <> '' WITH n, rand() as sortOrder " +
+        String query = "MATCH (n:Page) WITH n, rand() as sortOrder " +
                 "ORDER BY sortOrder " +
-                "LIMIT 300 " +
-                "RETURN n.title as title, n.text as text;";
+                "LIMIT 1000 " +
+                "RETURN n.title as title";
 
         String payload = "{\"statements\" : [ {\"statement\" : \"" +query + "\"} ]}";
         ClientResponse response = resource

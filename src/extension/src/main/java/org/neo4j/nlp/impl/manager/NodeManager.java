@@ -40,7 +40,7 @@ public class NodeManager {
         return manager.getOrCreateNode(key, db);
     }
 
-    public Map<String, Object> getNodeAsMap(Long id, GraphDatabaseService graphDb)
+    public static Map<String, Object> getNodeAsMap(Long id, GraphDatabaseService graphDb)
     {
         boolean success;
 
@@ -102,7 +102,7 @@ public class NodeManager {
         return success;
     }
 
-    private void getNodeHashMap(Long id, GraphDatabaseService gdb, Cache<Long, HashMap<String, Object>> cache) {
+    private static void getNodeHashMap(Long id, GraphDatabaseService gdb, Cache<Long, HashMap<String, Object>> cache) {
         Node thisNode = gdb.getNodeById(id);
         List<String> keys = new ArrayList<>();
         HashMap<String, Object> nodeMap = new HashMap<>();
