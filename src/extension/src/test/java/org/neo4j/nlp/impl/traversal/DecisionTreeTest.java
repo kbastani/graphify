@@ -4,6 +4,11 @@ import org.junit.Test;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.nlp.helpers.GraphManager;
+import org.neo4j.nlp.impl.cache.ClassRelationshipCache;
+import org.neo4j.nlp.impl.cache.PatternRelationshipCache;
+import org.neo4j.nlp.impl.manager.ClassNodeManager;
+import org.neo4j.nlp.impl.manager.DataNodeManager;
+import org.neo4j.nlp.impl.manager.DataRelationshipManager;
 import org.neo4j.nlp.impl.manager.NodeManager;
 import org.neo4j.nlp.impl.util.LearningManager;
 import org.neo4j.test.TestGraphDatabaseFactory;
@@ -33,22 +38,18 @@ public class DecisionTreeTest {
     }
 
     @Test
-    public void testVertexPath() throws Exception {
-        GraphManager graphManager = new GraphManager("Pattern");
-        GraphDatabaseService db = setUpDb();
-        DecisionTree<Long> tree  = new DecisionTree<>(0L, new HashMap<>(), db, graphManager);
-        tree.traverseTo(0L).addLeaf(1L);
-        tree.traverseTo(0L).addLeaf(2L).addLeaf(3L).addLeaf(4L).addLeaf(5L);
-        tree.traverseTo(4L).addLeaf(6L);
-        tree.traverseTo(4L).addLeaf(7L).addLeaf(8L);
-        tree.traverseTo(7L).addLeaf(9L);
-        System.out.println(tree.renderGraph());
-
-        System.out.println(tree.shortestPathTo(9L));
-    }
-
-    @Test
     public void testPatternMatchTraversal() throws Exception {
+        // Invalidate all caches
+        NodeManager.globalNodeCache.invalidateAll();
+        DataNodeManager.dataCache.invalidateAll();
+        ClassNodeManager.classCache.invalidateAll();
+        GraphManager.edgeCache.invalidateAll();
+        GraphManager.inversePatternCache.invalidateAll();
+        GraphManager.patternCache.invalidateAll();
+        DataRelationshipManager.relationshipCache.invalidateAll();
+        ClassRelationshipCache.relationshipCache.invalidateAll();
+        PatternRelationshipCache.relationshipCache.invalidateAll();
+
         GraphManager graphManager = new GraphManager("Pattern");
         GraphDatabaseService db = setUpDb();
         DecisionTree<Long> tree = new DecisionTree<>(0L, new HashMap<>(), db, graphManager);
@@ -88,16 +89,6 @@ public class DecisionTreeTest {
         graphManager.updateCache(3L, db);
         graphManager.updateCache(7L, db);
         graphManager.updateCache(9L, db);
-
-
-//        final Integer[] count = {1};
-//            JavaConversions.asJavaCollection(tree.shortestPathTo(9L)).forEach(a -> {
-//                ,db);
-//                count[0] += 1;
-//            });
-
-
-        //System.out.println(tree.traverseTo(3L).getProperties());
 
         // Traverse by pattern
         System.out.println(tree.traverseByPattern("The first person to go to space was smart"));

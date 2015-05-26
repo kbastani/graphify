@@ -2,7 +2,7 @@ package org.neo4j.nlp.impl.util;
 
 import junit.framework.Assert;
 import org.apache.commons.lang.ArrayUtils;
-import org.junit.Test;
+import org.junit.Ignore;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
@@ -34,8 +34,8 @@ public class VectorUtilTest
 
     final public static Charset ENCODING = StandardCharsets.UTF_8;
 
-    final public static String negativeSentimentDirectory = "/Users/kennybastani/Downloads/aclImdb/test/neg";
-    final public static String positiveSentimentDirectory = "/Users/kennybastani/Downloads/aclImdb/test/pos";
+    final public static String negativeSentimentDirectory = "/negative-examples";
+    final public static String positiveSentimentDirectory = "/positive-examples";
 
     final private static Stack<Integer> NEGATIVE_RANDOMIZED_INDEX = getRandomizedIndex(0, SAMPLE_SIZE);
     final private static Stack<Integer> POSITIVE_RANDOMIZED_INDEX = getRandomizedIndex(0, SAMPLE_SIZE);
@@ -45,7 +45,7 @@ public class VectorUtilTest
         return new TestGraphDatabaseFactory().newImpermanentDatabase();
     }
 
-    @Test
+    @Ignore
     public void sentimentAnalysisTest() throws IOException {
         GraphDatabaseService db = setUpDb();
         GraphManager graphManager = new GraphManager("Pattern");
@@ -155,14 +155,6 @@ public class VectorUtilTest
         errorMap.put("negative", 1.0 - (negativeError.doubleValue() / testCount.doubleValue()));
         errorMap.put("positive", 1.0 - (positiveError.doubleValue() / testCount.doubleValue()));
         errorMap.put("all", 1.0 - (totalCount.doubleValue() / (testCount.doubleValue() * 2)));
-
-
-
-//        System.out.println("Positive error text (should be negative): ");
-//        System.out.println(positiveErrorText);
-//
-//        System.out.println("Negative error text (should be positive): ");
-//        System.out.println(negativeErrorText);
 
         // Return success ratio
         return errorMap;
