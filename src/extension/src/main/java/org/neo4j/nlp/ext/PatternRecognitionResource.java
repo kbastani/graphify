@@ -52,7 +52,7 @@ public class PatternRecognitionResource {
         try {
             input = objectMapper.readValue(body, HashMap.class);
         } catch (Exception e) {
-            return Response.status(200).entity("{\"error\":\"" + Arrays.toString(e.getStackTrace()) + "\"}").build();
+            return Response.status(200).entity("{\"error\":\"" + Arrays.toString(e.getStackTrace()) + "\", \"message\":\"" + e.getMessage() + "\"}").build();
         }
         LabeledText labeledText = new LabeledText();
         ArrayList labels = (ArrayList) input.get("label");
